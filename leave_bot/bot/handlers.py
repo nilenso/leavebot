@@ -80,16 +80,14 @@ async def check_existing_leaves(
     user_id: int,
     dates: list[date],
 ) -> list[date]:
+    """Check for in-flight leaves only (pending/confirmed). Completed leaves are not
+    conflicts since they may have been deleted externally."""
     async with get_session() as session:
         result = await session.execute(
             select(LeaveRecord.date)
             .where(LeaveRecord.user_id == user_id)
             .where(LeaveRecord.date.in_(dates))
-            .where(
-                LeaveRecord.status.in_(
-                    [LeaveStatus.pending, LeaveStatus.confirmed, LeaveStatus.completed]
-                )
-            )
+            .where(LeaveRecord.status.in_([LeaveStatus.pending, LeaveStatus.confirmed]))
         )
         return list(result.scalars().all())
 
