@@ -156,7 +156,8 @@ async def delete_user(
 async def import_slack_users(
     session: AsyncSession = Depends(get_db),
 ) -> ImportResult:
-    """Import users from Slack workspace."""
+    """Import users from the configured Slack leave channel."""
+    from slack_sdk.errors import SlackApiError
     from slack_sdk.web.async_client import AsyncWebClient
 
     settings = get_settings()
@@ -165,52 +166,112 @@ async def import_slack_users(
     imported = 0
     updated = 0
     skipped = 0
-    errors = []
+    errors: list[str] = []
 
     try:
-        # Fetch all users from Slack
-        response = await client.users_list()
-        members = response.get("members", [])
+        # First, get channel members from the configured leave channel
+        channel_id = settings.slack_channel_id
+        channel_member_ids: list[str] = []
 
-        for member in members:
-            # Skip bots and deactivated users
-            if member.get("is_bot") or member.get("deleted"):
-                skipped += 1
-                continue
-
-            slack_user_id = member["id"]
-            profile = member.get("profile", {})
-            display_name = (
-                profile.get("display_name")
-                or profile.get("real_name")
-                or member.get("name", "Unknown")
-            )
-            email = profile.get("email")
-            timezone = member.get("tz", "Asia/Kolkata")
-
-            # Check if user exists
-            result = await session.execute(select(User).where(User.slack_user_id == slack_user_id))
-            existing = result.scalar_one_or_none()
-
-            if existing:
-                # Update existing user
-                existing.slack_display_name = display_name
-                existing.email = email
-                existing.slack_timezone = timezone
-                updated += 1
-            else:
-                # Create new user
-                user = User(
-                    slack_user_id=slack_user_id,
-                    slack_display_name=display_name,
-                    email=email,
-                    slack_timezone=timezone,
+        try:
+            # Paginate through all channel members
+            cursor = None
+            while True:
+                response = await client.conversations_members(
+                    channel=channel_id,
+                    cursor=cursor,
+                    limit=200,
                 )
-                session.add(user)
-                imported += 1
+                channel_member_ids.extend(response.get("members", []))
+
+                # Check for pagination
+                cursor = response.get("response_metadata", {}).get("next_cursor")
+                if not cursor:
+                    break
+
+        except SlackApiError as e:
+            error_code = e.response.get("error", "unknown_error")
+            if error_code == "channel_not_found":
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Channel {channel_id} not found. Verify the channel ID is correct.",
+                )
+            elif error_code == "not_in_channel":
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Bot is not a member of channel {channel_id}. Please add the bot to the channel first.",
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to fetch channel members: {error_code}",
+                )
+
+        if not channel_member_ids:
+            logger.warning("no_members_in_channel", channel_id=channel_id)
+            return ImportResult(imported=0, updated=0, skipped=0, errors=[])
+
+        logger.info(
+            "fetched_channel_members",
+            channel_id=channel_id,
+            member_count=len(channel_member_ids),
+        )
+
+        # Fetch user info for each channel member
+        for slack_user_id in channel_member_ids:
+            try:
+                user_response = await client.users_info(user=slack_user_id)
+                member = user_response.get("user", {})
+
+                # Skip bots and deactivated users
+                if member.get("is_bot") or member.get("deleted"):
+                    skipped += 1
+                    continue
+
+                profile = member.get("profile", {})
+                display_name = (
+                    profile.get("display_name")
+                    or profile.get("real_name")
+                    or member.get("name", "Unknown")
+                )
+                email = profile.get("email")
+                timezone = member.get("tz", "Asia/Kolkata")
+
+                # Check if user exists
+                result = await session.execute(
+                    select(User).where(User.slack_user_id == slack_user_id)
+                )
+                existing = result.scalar_one_or_none()
+
+                if existing:
+                    # Update existing user
+                    existing.slack_display_name = display_name
+                    existing.email = email
+                    existing.slack_timezone = timezone
+                    updated += 1
+                else:
+                    # Create new user
+                    user = User(
+                        slack_user_id=slack_user_id,
+                        slack_display_name=display_name,
+                        email=email,
+                        slack_timezone=timezone,
+                    )
+                    session.add(user)
+                    imported += 1
+
+            except SlackApiError as e:
+                error_msg = (
+                    f"Failed to fetch user {slack_user_id}: {e.response.get('error', str(e))}"
+                )
+                logger.warning("user_fetch_failed", slack_user_id=slack_user_id, error=str(e))
+                errors.append(error_msg)
+                skipped += 1
 
         await session.commit()
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("slack_import_failed", error=str(e))
         errors.append(str(e))
