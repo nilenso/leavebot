@@ -14,6 +14,14 @@ from leave_bot.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+class ThreadMessage(BaseModel):
+    """A message from a thread for context."""
+
+    text: str = Field(..., description="Message text content")
+    user_id: str = Field(..., description="Slack user ID of the sender")
+    ts: str = Field(..., description="Message timestamp")
+
+
 class LeaveDate(BaseModel):
     """A single leave date with type and category."""
 
@@ -81,12 +89,24 @@ RULES:
    - Assume leave when someone mentions being busy or in meetings
    - Parse messages asking about leave balance or policy
 
+8. Thread Context:
+   - When conversation history is provided, use it to understand follow-up messages
+   - Follow-ups like "yes", "confirmed", "sounds good" after a leave parsing clarification should be treated as confirmations
+   - If the user says "make it a half day instead", look at the previous context to understand what dates they're referring to
+   - Modifications like "actually, just the 5th" refer to dates mentioned in thread context
+   - Treat "yes, confirmed" or similar affirmations as NOT leave requests (they're button confirmations, not new leave)
+
 EXAMPLES:
 - "On leave tomorrow" → high confidence, 1 full day vacation
 - "Taking sick leave 5th-7th" → high confidence, 3 sick days
 - "Half day tomorrow afternoon" → high confidence, 1 half_pm vacation
 - "WFH today" → NOT a leave request
 - "Cancel my leave for tomorrow" → cancellation request
+
+THREAD CONTEXT EXAMPLES:
+- Thread: ["Taking leave on the 10th"] + Current: "make it a half day instead" → 1 half_am vacation on the 10th
+- Thread: ["I need leave 5th-7th"] + Current: "actually just the 5th and 6th" → 2 full day vacation dates
+- Thread: ["Leave tomorrow?"] + Current: "yes, confirmed" → NOT a leave request (this is an affirmation, not a new request)
 """
 
 
@@ -94,8 +114,16 @@ async def parse_leave_message(
     message_text: str,
     user_timezone: str = "Asia/Kolkata",
     reference_date: date | None = None,
+    thread_context: list[ThreadMessage] | None = None,
 ) -> ParsedLeave:
-    """Parse a leave message using OpenAI structured output."""
+    """Parse a leave message using OpenAI structured output.
+
+    Args:
+        message_text: The current message to parse.
+        user_timezone: User's timezone for date calculations.
+        reference_date: Reference date for relative date parsing.
+        thread_context: Optional list of previous messages in the thread for context.
+    """
     settings = get_settings()
     client = OpenAI(api_key=settings.openai_api_key)
 
@@ -103,22 +131,35 @@ async def parse_leave_message(
         tz = ZoneInfo(user_timezone)
         reference_date = datetime.now(tz).date()
 
+    # Build conversation history section if thread context exists
+    conversation_history = ""
+    if thread_context:
+        history_lines = []
+        for msg in thread_context:
+            history_lines.append(f'- "{msg.text}"')
+        conversation_history = f"""
+Conversation History (previous messages in thread):
+{chr(10).join(history_lines)}
+
+"""
+
     # Build the user prompt with context
     user_prompt = f"""Parse this leave message:
-
-Message: "{message_text}"
+{conversation_history}Current Message: "{message_text}"
 
 Context:
 - Current date: {reference_date.isoformat()} ({reference_date.strftime("%A")})
 - User timezone: {user_timezone}
 - Current year: {reference_date.year}
 
-Extract structured leave information following the rules."""
+Extract structured leave information following the rules. If there is conversation history, use it to understand follow-up messages and modifications to previous requests."""
 
     logger.info(
         "parsing_leave_message",
         message_length=len(message_text),
         reference_date=reference_date.isoformat(),
+        has_thread_context=thread_context is not None,
+        thread_context_length=len(thread_context) if thread_context else 0,
     )
 
     try:

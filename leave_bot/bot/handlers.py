@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
 from leave_bot.bot import blocks
-from leave_bot.bot.parser import parse_leave_message, validate_parsed_dates
+from leave_bot.bot.parser import ThreadMessage, parse_leave_message, validate_parsed_dates
 from leave_bot.config import get_settings
 from leave_bot.database import get_session
 from leave_bot.models.leave import LeaveCategory, LeaveRecord, LeaveStatus, LeaveType
@@ -20,6 +20,47 @@ from leave_bot.models.user import User
 from leave_bot.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+async def fetch_thread_context(
+    client: AsyncWebClient,
+    channel_id: str,
+    thread_ts: str,
+    current_ts: str,
+) -> list[ThreadMessage]:
+    """Fetch all messages in a thread before the current message."""
+    try:
+        result = await client.conversations_replies(
+            channel=channel_id,
+            ts=thread_ts,
+            inclusive=True,
+        )
+        messages = result.get("messages", [])
+
+        thread_context: list[ThreadMessage] = []
+        for msg in messages:
+            # Skip bot messages
+            if msg.get("bot_id") or msg.get("subtype") == "bot_message":
+                continue
+            # Skip the current message (we don't want to include it twice)
+            if msg.get("ts") == current_ts:
+                continue
+            # Only include messages with text from users
+            if msg.get("text") and msg.get("user"):
+                thread_context.append(
+                    ThreadMessage(
+                        text=msg.get("text", ""),
+                        user_id=msg.get("user", ""),
+                        ts=msg.get("ts", ""),
+                    )
+                )
+
+        # Sort by timestamp to ensure chronological order
+        thread_context.sort(key=lambda m: m.ts)
+        return thread_context
+    except Exception as e:
+        logger.error("fetch_thread_context_error", error=str(e))
+        return []
 
 
 def has_trigger_keyword(text: str, keywords: list[str]) -> bool:
@@ -113,8 +154,11 @@ async def handle_message(
     if not user_id:
         return
 
-    # Skip if no trigger keywords
-    if not has_trigger_keyword(text, settings.trigger_keywords_list):
+    # Determine if this is a thread reply
+    is_thread_reply = thread_ts is not None and thread_ts != message_ts
+
+    # Skip trigger keyword check for thread replies, require it for top-level messages
+    if not is_thread_reply and not has_trigger_keyword(text, settings.trigger_keywords_list):
         logger.debug("no_trigger_keywords", text=text[:50])
         return
 
@@ -123,6 +167,7 @@ async def handle_message(
         user_id=user_id,
         channel_id=channel_id,
         message_ts=message_ts,
+        is_thread_reply=is_thread_reply,
     )
 
     # Check if user is registered
@@ -135,10 +180,26 @@ async def handle_message(
         )
         return
 
+    # Fetch thread context for thread replies
+    thread_context: list[ThreadMessage] = []
+    if is_thread_reply and thread_ts and channel_id:
+        thread_context = await fetch_thread_context(
+            client=client,
+            channel_id=channel_id,
+            thread_ts=thread_ts,
+            current_ts=message_ts or "",
+        )
+        logger.info(
+            "fetched_thread_context",
+            num_messages=len(thread_context),
+            thread_ts=thread_ts,
+        )
+
     # Parse the message with LLM
     parsed = await parse_leave_message(
         message_text=text,
         user_timezone=user.slack_timezone,
+        thread_context=thread_context if thread_context else None,
     )
 
     # If not a leave request, ignore
