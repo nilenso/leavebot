@@ -1,6 +1,6 @@
 """Google Calendar service for creating and managing leave events."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from google.oauth2 import service_account
@@ -15,6 +15,43 @@ logger = get_logger(__name__)
 
 # Google Calendar API scopes
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
+
+def group_consecutive_dates(dates: list[date]) -> list[list[date]]:
+    """Group consecutive dates into spans.
+
+    Example:
+        [Jan 5, Jan 6, Jan 7, Jan 10, Jan 11] -> [[Jan 5, Jan 6, Jan 7], [Jan 10, Jan 11]]
+
+    Args:
+        dates: List of dates to group (will be sorted)
+
+    Returns:
+        List of date groups, where each group is a list of consecutive dates
+    """
+    if not dates:
+        return []
+
+    sorted_dates = sorted(dates)
+    groups: list[list[date]] = []
+    current_group: list[date] = [sorted_dates[0]]
+
+    for i in range(1, len(sorted_dates)):
+        current_date = sorted_dates[i]
+        prev_date = sorted_dates[i - 1]
+
+        if current_date - prev_date == timedelta(days=1):
+            # Consecutive, add to current group
+            current_group.append(current_date)
+        else:
+            # Not consecutive, start a new group
+            groups.append(current_group)
+            current_group = [current_date]
+
+    # Don't forget the last group
+    groups.append(current_group)
+
+    return groups
 
 
 class CalendarService:
@@ -84,6 +121,50 @@ class CalendarService:
 
         event_id = event["id"]
         logger.info("calendar_event_created", event_id=event_id)
+        return event_id
+
+    async def create_spanning_event(
+        self,
+        user_name: str,
+        user_email: str | None,
+        start_date: date,
+        end_date: date,
+    ) -> str:
+        """Create a multi-day spanning calendar event.
+
+        Args:
+            user_name: Display name for the event summary
+            user_email: User's email (currently unused, for future attendee support)
+            start_date: First day of leave (inclusive)
+            end_date: Last day of leave (inclusive)
+
+        Returns:
+            The created event ID
+        """
+        summary = f"Leave - {user_name}"
+
+        # Google Calendar uses exclusive end dates, so add 1 day
+        exclusive_end = end_date + timedelta(days=1)
+
+        event_body: dict[str, Any] = {
+            "summary": summary,
+            "eventType": "default",
+            "start": {"date": start_date.isoformat()},
+            "end": {"date": exclusive_end.isoformat()},
+        }
+
+        logger.info(
+            "creating_spanning_calendar_event",
+            user_name=user_name,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            span_days=(end_date - start_date).days + 1,
+        )
+
+        event = self.service.events().insert(calendarId=self.calendar_id, body=event_body).execute()
+
+        event_id = event["id"]
+        logger.info("calendar_spanning_event_created", event_id=event_id)
         return event_id
 
     async def delete_event(self, event_id: str) -> bool:

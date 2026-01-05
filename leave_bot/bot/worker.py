@@ -102,13 +102,12 @@ class Worker:
             num_dates=len(dates),
         )
 
-        successful_records = []
-        failed_records = []
+        # Collect all leave records first
+        from datetime import date as date_type
+
+        records_to_sync: list[LeaveRecord] = []
 
         for date_info in dates:
-            # Get leave record
-            from datetime import date as date_type
-
             leave_date = date_type.fromisoformat(date_info["date"])
 
             result = await session.execute(
@@ -123,9 +122,16 @@ class Worker:
                 logger.warning("leave_record_not_found", date=date_info["date"])
                 continue
 
-            # Sync the leave
-            sync_result = await self.sync_service.sync_leave(record, user, session)
+            records_to_sync.append(record)
 
+        # Sync all leaves at once (creates spanning calendar events for consecutive days)
+        sync_results = await self.sync_service.sync_leaves(records_to_sync, user, session)
+
+        # Pair up records with results
+        successful_records = []
+        failed_records = []
+
+        for record, sync_result in zip(records_to_sync, sync_results, strict=True):
             if sync_result.success:
                 successful_records.append(record)
             else:
