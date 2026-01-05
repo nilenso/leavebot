@@ -1,0 +1,39 @@
+# Caddyfile for Leave Bot Admin
+
+# Local development (uncomment for local testing)
+# :80 {
+#     reverse_proxy web:8000
+# }
+
+# Production with auto-TLS
+leavebot.nilenso.com {
+    # Basic authentication
+    basicauth {
+        admin {$ADMIN_PASSWORD_HASH}
+    }
+
+    # Reverse proxy to web service
+    reverse_proxy web:8000
+
+    # Enable compression
+    encode gzip
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+}
+
+# Health check endpoint without auth (for monitoring)
+leavebot.nilenso.com/api/health {
+    reverse_proxy web:8000
+}
