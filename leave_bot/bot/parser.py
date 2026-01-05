@@ -128,7 +128,6 @@ Extract structured leave information following the rules."""
             model=settings.openai_model,
             messages=[system_msg, user_msg],
             response_format=ParsedLeave,
-            temperature=0.1,  # Low temperature for consistent parsing
         )
 
         parsed = response.choices[0].message.parsed

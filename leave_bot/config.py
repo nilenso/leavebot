@@ -5,7 +5,7 @@ import json
 from functools import lru_cache
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -51,9 +51,9 @@ class Settings(BaseSettings):
     harvest_sick_task_id: int = Field(..., description="Harvest Task ID for sick leave")
 
     # Bot Configuration
-    trigger_keywords: list[str] = Field(
-        default=["leave", "ooo", "wfh", "sick", "vacation", "pto", "day off"],
-        description="Keywords that trigger leave parsing",
+    trigger_keywords: str = Field(
+        default="leave,ooo,wfh,sick,vacation,pto,day off",
+        description="Comma-separated keywords that trigger leave parsing",
     )
     default_timezone: str = Field(
         default="Asia/Kolkata",
@@ -70,13 +70,9 @@ class Settings(BaseSettings):
         description="Minutes until pending actions expire",
     )
 
-    @field_validator("trigger_keywords", mode="before")
-    @classmethod
-    def parse_trigger_keywords(cls, v: Any) -> list[str]:
-        """Parse comma-separated keywords string into list."""
-        if isinstance(v, str):
-            return [kw.strip().lower() for kw in v.split(",") if kw.strip()]
-        return v
+    @property
+    def trigger_keywords_list(self) -> list[str]:
+        return [kw.strip().lower() for kw in self.trigger_keywords.split(",") if kw.strip()]
 
     @property
     def google_service_account_info(self) -> dict[str, Any]:

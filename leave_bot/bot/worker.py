@@ -38,7 +38,7 @@ class Worker:
             # Get confirmed pending actions
             result = await session.execute(
                 select(PendingAction)
-                .where(PendingAction.status == ActionStatus.CONFIRMED)
+                .where(PendingAction.status == ActionStatus.confirmed)
                 .order_by(PendingAction.created_at)
                 .limit(10)
             )
@@ -52,7 +52,7 @@ class Worker:
             for action in actions:
                 try:
                     # Mark as processing
-                    action.status = ActionStatus.PROCESSING
+                    action.status = ActionStatus.processing
                     await session.commit()
 
                     # Get user
@@ -62,17 +62,17 @@ class Worker:
                     user = user_result.scalar_one_or_none()
 
                     if not user:
-                        action.status = ActionStatus.COMPLETED
+                        action.status = ActionStatus.completed
                         logger.warning("user_not_found_for_action", action_id=str(action.id))
                         continue
 
                     # Process based on action type
-                    if action.action_type == ActionType.CREATE_LEAVE:
+                    if action.action_type == ActionType.create_leave:
                         await self._process_create_leave(action, user, session)
-                    elif action.action_type == ActionType.CANCEL_LEAVE:
+                    elif action.action_type == ActionType.cancel_leave:
                         await self._process_cancel_leave(action, user, session)
 
-                    action.status = ActionStatus.COMPLETED
+                    action.status = ActionStatus.completed
                     processed += 1
 
                 except Exception as e:
@@ -81,7 +81,7 @@ class Worker:
                         action_id=str(action.id),
                         error=str(e),
                     )
-                    action.status = ActionStatus.CONFIRMED  # Allow retry
+                    action.status = ActionStatus.confirmed  # Allow retry
                     await session.rollback()
 
             await session.commit()
@@ -115,7 +115,7 @@ class Worker:
                 select(LeaveRecord)
                 .where(LeaveRecord.user_id == user.id)
                 .where(LeaveRecord.date == leave_date)
-                .where(LeaveRecord.status == LeaveStatus.CONFIRMED)
+                .where(LeaveRecord.status == LeaveStatus.confirmed)
             )
             record = result.scalar_one_or_none()
 
@@ -188,7 +188,7 @@ class Worker:
                 select(LeaveRecord)
                 .where(LeaveRecord.user_id == user.id)
                 .where(LeaveRecord.date == leave_date)
-                .where(LeaveRecord.status.in_([LeaveStatus.CONFIRMED, LeaveStatus.COMPLETED]))
+                .where(LeaveRecord.status.in_([LeaveStatus.confirmed, LeaveStatus.completed]))
             )
             record = result.scalar_one_or_none()
 
@@ -202,7 +202,7 @@ class Worker:
             # Get expired actions
             result = await session.execute(
                 select(PendingAction)
-                .where(PendingAction.status == ActionStatus.PENDING)
+                .where(PendingAction.status == ActionStatus.pending)
                 .where(PendingAction.expires_at < now)
             )
             expired_actions = result.scalars().all()
@@ -211,7 +211,7 @@ class Worker:
                 return 0
 
             for action in expired_actions:
-                action.status = ActionStatus.EXPIRED
+                action.status = ActionStatus.expired
 
                 # Update Slack message to disable buttons
                 if action.slack_channel_id and action.slack_message_ts:

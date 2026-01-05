@@ -41,12 +41,12 @@ class HarvestService:
         logger.info("harvest_service_initialized", project_id=self.project_id)
 
     def _get_task_id(self, category: LeaveCategory) -> int:
-        if category == LeaveCategory.SICK:
+        if category == LeaveCategory.sick:
             return self.sick_task_id
         return self.vacation_task_id
 
     def _get_hours(self, leave_type: LeaveType) -> float:
-        if leave_type == LeaveType.FULL:
+        if leave_type == LeaveType.full:
             return FULL_DAY_HOURS
         return HALF_DAY_HOURS
 
@@ -63,9 +63,9 @@ class HarvestService:
 
         # Build notes string
         if notes is None:
-            if leave_type == LeaveType.FULL:
+            if leave_type == LeaveType.full:
                 notes = f"Leave ({category.value})"
-            elif leave_type == LeaveType.HALF_AM:
+            elif leave_type == LeaveType.half_am:
                 notes = f"Leave - Morning ({category.value})"
             else:
                 notes = f"Leave - Afternoon ({category.value})"

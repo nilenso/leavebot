@@ -89,7 +89,7 @@ class SyncService:
 
         # Update leave record status
         if errors:
-            leave_record.status = LeaveStatus.FAILED
+            leave_record.status = LeaveStatus.failed
             leave_record.error_message = "; ".join(errors)
             leave_record.retry_count += 1
             await session.commit()
@@ -100,7 +100,7 @@ class SyncService:
                 error_message=leave_record.error_message,
             )
         else:
-            leave_record.status = LeaveStatus.COMPLETED
+            leave_record.status = LeaveStatus.completed
             leave_record.error_message = None
             await session.commit()
             logger.info(
@@ -150,12 +150,12 @@ class SyncService:
 
         # Update leave record status
         if errors:
-            leave_record.status = LeaveStatus.FAILED
+            leave_record.status = LeaveStatus.failed
             leave_record.error_message = "; ".join(errors)
             await session.commit()
             return SyncResult(success=False, error_message=leave_record.error_message)
         else:
-            leave_record.status = LeaveStatus.CANCELLED
+            leave_record.status = LeaveStatus.cancelled
             leave_record.error_message = None
             await session.commit()
             logger.info("leave_cancelled", leave_id=leave_record.id)
@@ -166,7 +166,7 @@ class SyncService:
             # Get failed leaves that haven't exceeded retry limit
             result = await session.execute(
                 select(LeaveRecord)
-                .where(LeaveRecord.status == LeaveStatus.FAILED)
+                .where(LeaveRecord.status == LeaveStatus.failed)
                 .where(LeaveRecord.retry_count < MAX_RETRIES)
                 .order_by(LeaveRecord.updated_at)
                 .limit(10)
@@ -185,7 +185,7 @@ class SyncService:
                 user = user_result.scalar_one_or_none()
 
                 if not user:
-                    leave.status = LeaveStatus.CANCELLED
+                    leave.status = LeaveStatus.cancelled
                     leave.error_message = "User not found"
                     continue
 

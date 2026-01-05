@@ -1,5 +1,6 @@
 """Slack message and action handlers."""
 
+import re
 import uuid
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -45,7 +46,7 @@ async def check_existing_leaves(
             .where(LeaveRecord.date.in_(dates))
             .where(
                 LeaveRecord.status.in_(
-                    [LeaveStatus.PENDING, LeaveStatus.CONFIRMED, LeaveStatus.COMPLETED]
+                    [LeaveStatus.pending, LeaveStatus.confirmed, LeaveStatus.completed]
                 )
             )
         )
@@ -74,7 +75,7 @@ async def create_pending_action(
         slack_message_ts=slack_message_ts,
         slack_channel_id=slack_channel_id,
         slack_thread_ts=slack_thread_ts,
-        status=ActionStatus.PENDING,
+        status=ActionStatus.pending,
         expires_at=expires_at,
     )
 
@@ -113,7 +114,7 @@ async def handle_message(
         return
 
     # Skip if no trigger keywords
-    if not has_trigger_keyword(text, settings.trigger_keywords):
+    if not has_trigger_keyword(text, settings.trigger_keywords_list):
         logger.debug("no_trigger_keywords", text=text[:50])
         return
 
@@ -166,7 +167,7 @@ async def handle_message(
     has_conflicts = len(conflicting_dates) > 0
 
     # Determine action type
-    action_type = ActionType.CANCEL_LEAVE if parsed.is_cancellation else ActionType.CREATE_LEAVE
+    action_type = ActionType.cancel_leave if parsed.is_cancellation else ActionType.create_leave
 
     # Create pending action
     action_id = str(uuid.uuid4())[:8]  # Short ID for buttons
@@ -252,7 +253,7 @@ async def handle_leave_confirm(ack, body: dict, client: AsyncWebClient) -> None:
             return
 
         # Check if expired
-        if pending.status == ActionStatus.EXPIRED:
+        if pending.status == ActionStatus.expired:
             await client.chat_update(
                 channel=channel_id,
                 ts=message_ts,
@@ -261,7 +262,7 @@ async def handle_leave_confirm(ack, body: dict, client: AsyncWebClient) -> None:
             return
 
         # Check if already processed
-        if pending.status != ActionStatus.PENDING:
+        if pending.status != ActionStatus.pending:
             logger.info("action_already_processed", status=pending.status.value)
             return
 
@@ -276,7 +277,7 @@ async def handle_leave_confirm(ack, body: dict, client: AsyncWebClient) -> None:
             return
 
         # Update pending action status
-        pending.status = ActionStatus.CONFIRMED
+        pending.status = ActionStatus.confirmed
 
         # Create leave records
         payload = pending.payload
@@ -297,14 +298,14 @@ async def handle_leave_confirm(ack, body: dict, client: AsyncWebClient) -> None:
                     leave_category=leave_category,
                     slack_message_ts=pending.slack_message_ts,
                     slack_channel_id=pending.slack_channel_id,
-                    status=LeaveStatus.CONFIRMED,
+                    status=LeaveStatus.confirmed,
                 )
                 .on_conflict_do_update(
                     index_elements=["user_id", "date"],
                     set_={
                         "leave_type": leave_type,
                         "leave_category": leave_category,
-                        "status": LeaveStatus.CONFIRMED,
+                        "status": LeaveStatus.confirmed,
                         "error_message": None,
                     },
                 )
@@ -354,8 +355,8 @@ async def handle_leave_cancel(ack, body: dict, client: AsyncWebClient) -> None:
         result = await session.execute(select(PendingAction).where(PendingAction.id == action_id))
         pending = result.scalar_one_or_none()
 
-        if pending and pending.status == ActionStatus.PENDING:
-            pending.status = ActionStatus.CANCELLED
+        if pending and pending.status == ActionStatus.pending:
+            pending.status = ActionStatus.cancelled
             await session.commit()
 
     # Update message
@@ -380,11 +381,11 @@ def register_handlers(app: AsyncApp) -> None:
         await handle_message(event, say, client)
 
     # Register button action handlers
-    @app.action({"action_id": "leave_confirm_.*"})
+    @app.action(re.compile(r"leave_confirm_.*"))
     async def confirm_handler(ack, body, client):
         await handle_leave_confirm(ack, body, client)
 
-    @app.action({"action_id": "leave_cancel_.*"})
+    @app.action(re.compile(r"leave_cancel_.*"))
     async def cancel_handler(ack, body, client):
         await handle_leave_cancel(ack, body, client)
 

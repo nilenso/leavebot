@@ -91,9 +91,9 @@ def sample_leave_record(sample_user: User) -> LeaveRecord:
         id=1,
         user_id=sample_user.id,
         date=date(2026, 1, 5),
-        leave_type=LeaveType.FULL,
-        leave_category=LeaveCategory.VACATION,
-        status=LeaveStatus.PENDING,
+        leave_type=LeaveType.full,
+        leave_category=LeaveCategory.vacation,
+        status=LeaveStatus.pending,
     )
 
 

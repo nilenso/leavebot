@@ -52,8 +52,23 @@ def create_app() -> FastAPI:
     app.include_router(config.router, prefix="/api", tags=["config"])
 
     templates_path = Path(__file__).parent / "templates"
-    if templates_path.exists():
-        app.state.templates = Jinja2Templates(directory=str(templates_path))
+    templates = Jinja2Templates(directory=str(templates_path))
+
+    @app.get("/", include_in_schema=False)
+    async def dashboard(request: Request):
+        return templates.TemplateResponse("dashboard.html", {"request": request})
+
+    @app.get("/users", include_in_schema=False)
+    async def users_page(request: Request):
+        return templates.TemplateResponse("users.html", {"request": request})
+
+    @app.get("/leaves", include_in_schema=False)
+    async def leaves_page(request: Request):
+        return templates.TemplateResponse("leaves.html", {"request": request})
+
+    @app.get("/config", include_in_schema=False)
+    async def config_page(request: Request):
+        return templates.TemplateResponse("config.html", {"request": request})
 
     logger.info("web_app_created")
     return app

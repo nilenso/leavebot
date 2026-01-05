@@ -5,6 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    BigInteger,
     Date,
     DateTime,
     ForeignKey,
@@ -26,26 +27,26 @@ if TYPE_CHECKING:
 class LeaveType(str, Enum):
     """Type of leave - full day or half day."""
 
-    FULL = "full"
-    HALF_AM = "half_am"  # Morning half (11:00-15:00)
-    HALF_PM = "half_pm"  # Afternoon half (15:00-19:00)
+    full = "full"
+    half_am = "half_am"
+    half_pm = "half_pm"
 
 
 class LeaveCategory(str, Enum):
     """Category of leave for Harvest task selection."""
 
-    VACATION = "vacation"
-    SICK = "sick"
+    vacation = "vacation"
+    sick = "sick"
 
 
 class LeaveStatus(str, Enum):
     """Status of leave record processing."""
 
-    PENDING = "pending"  # Awaiting user confirmation
-    CONFIRMED = "confirmed"  # User confirmed, awaiting sync
-    COMPLETED = "completed"  # Successfully synced
-    FAILED = "failed"  # Sync failed, needs retry
-    CANCELLED = "cancelled"  # User cancelled or deleted
+    pending = "pending"
+    confirmed = "confirmed"
+    completed = "completed"
+    failed = "failed"
+    cancelled = "cancelled"
 
 
 class LeaveRecord(Base):
@@ -65,12 +66,12 @@ class LeaveRecord(Base):
     leave_type: Mapped[LeaveType] = mapped_column(
         ENUM(LeaveType, name="leave_type", create_type=False),
         nullable=False,
-        default=LeaveType.FULL,
+        default=LeaveType.full,
     )
     leave_category: Mapped[LeaveCategory] = mapped_column(
         ENUM(LeaveCategory, name="leave_category", create_type=False),
         nullable=False,
-        default=LeaveCategory.VACATION,
+        default=LeaveCategory.vacation,
     )
 
     # Slack context
@@ -79,13 +80,13 @@ class LeaveRecord(Base):
 
     # External sync IDs
     calendar_event_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    harvest_entry_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    harvest_entry_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Status tracking
     status: Mapped[LeaveStatus] = mapped_column(
         ENUM(LeaveStatus, name="leave_status", create_type=False),
         nullable=False,
-        default=LeaveStatus.PENDING,
+        default=LeaveStatus.pending,
         index=True,
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

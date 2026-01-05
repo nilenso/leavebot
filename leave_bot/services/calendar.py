@@ -40,9 +40,9 @@ class CalendarService:
         leave_type: LeaveType,
         timezone: str = "Asia/Kolkata",
     ) -> str:
-        if leave_type == LeaveType.FULL:
+        if leave_type == LeaveType.full:
             summary = f"Leave - {user_name}"
-        elif leave_type == LeaveType.HALF_AM:
+        elif leave_type == LeaveType.half_am:
             summary = f"Leave (Morning) - {user_name}"
         else:
             summary = f"Leave (Afternoon) - {user_name}"
@@ -53,7 +53,7 @@ class CalendarService:
         }
 
         # Set timing based on leave type
-        if leave_type == LeaveType.FULL:
+        if leave_type == LeaveType.full:
             # All-day event
             event_body["start"] = {"date": leave_date.isoformat()}
             event_body["end"] = {"date": leave_date.isoformat()}
@@ -69,9 +69,8 @@ class CalendarService:
                 "timeZone": timezone,
             }
 
-        # Add attendee if email is available
-        if user_email:
-            event_body["attendees"] = [{"email": user_email}]
+        # Note: Not adding attendees - requires Domain-Wide Delegation for service accounts
+        # The event summary already includes the user's name
 
         logger.info(
             "creating_calendar_event",

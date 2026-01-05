@@ -18,19 +18,19 @@ if TYPE_CHECKING:
 class ActionType(str, Enum):
     """Type of pending action."""
 
-    CREATE_LEAVE = "create_leave"
-    CANCEL_LEAVE = "cancel_leave"
+    create_leave = "create_leave"
+    cancel_leave = "cancel_leave"
 
 
 class ActionStatus(str, Enum):
     """Status of pending action."""
 
-    PENDING = "pending"  # Awaiting user confirmation
-    CONFIRMED = "confirmed"  # User confirmed, ready for processing
-    PROCESSING = "processing"  # Currently being processed
-    COMPLETED = "completed"  # Successfully processed
-    EXPIRED = "expired"  # Expired without user action
-    CANCELLED = "cancelled"  # User cancelled
+    pending = "pending"
+    confirmed = "confirmed"
+    processing = "processing"
+    completed = "completed"
+    expired = "expired"
+    cancelled = "cancelled"
 
 
 class PendingAction(Base):
@@ -62,7 +62,7 @@ class PendingAction(Base):
     status: Mapped[ActionStatus] = mapped_column(
         ENUM(ActionStatus, name="action_status", create_type=False),
         nullable=False,
-        default=ActionStatus.PENDING,
+        default=ActionStatus.pending,
         index=True,
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

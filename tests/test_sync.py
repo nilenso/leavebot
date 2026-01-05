@@ -78,9 +78,9 @@ class TestSyncService:
             id=1,
             user_id=sample_user.id,
             date=date(2026, 1, 5),
-            leave_type=LeaveType.FULL,
-            leave_category=LeaveCategory.VACATION,
-            status=LeaveStatus.CONFIRMED,
+            leave_type=LeaveType.full,
+            leave_category=LeaveCategory.vacation,
+            status=LeaveStatus.confirmed,
             retry_count=0,
         )
 
@@ -108,7 +108,7 @@ class TestSyncService:
             assert result.success is True
             assert result.calendar_event_id == "event123"
             assert result.harvest_entry_id == 456
-            assert sample_leave.status == LeaveStatus.COMPLETED
+            assert sample_leave.status == LeaveStatus.completed
 
     @pytest.mark.asyncio
     async def test_sync_leave_calendar_failure(
@@ -135,7 +135,7 @@ class TestSyncService:
             assert result.success is False
             assert result.error_message is not None
             assert "Calendar" in result.error_message
-            assert sample_leave.status == LeaveStatus.FAILED
+            assert sample_leave.status == LeaveStatus.failed
 
     @pytest.mark.asyncio
     async def test_sync_leave_harvest_failure(
@@ -209,7 +209,7 @@ class TestSyncService:
         """Test successful leave cancellation."""
         sample_leave.calendar_event_id = "event123"
         sample_leave.harvest_entry_id = 456
-        sample_leave.status = LeaveStatus.COMPLETED
+        sample_leave.status = LeaveStatus.completed
 
         with (
             patch("leave_bot.services.sync.CalendarService", return_value=mock_calendar_service),
@@ -223,7 +223,7 @@ class TestSyncService:
             result = await sync_service.cancel_leave(sample_leave, mock_session)
 
             assert result.success is True
-            assert sample_leave.status == LeaveStatus.CANCELLED
+            assert sample_leave.status == LeaveStatus.cancelled
             mock_calendar_service.delete_event.assert_called_once_with("event123")
             mock_harvest_service.delete_time_entry.assert_called_once_with(456)
 
@@ -237,7 +237,7 @@ class TestSyncService:
         """Test cancellation with partial failure."""
         sample_leave.calendar_event_id = "event123"
         sample_leave.harvest_entry_id = 456
-        sample_leave.status = LeaveStatus.COMPLETED
+        sample_leave.status = LeaveStatus.completed
 
         mock_harvest_service.delete_time_entry = AsyncMock(side_effect=Exception("Harvest error"))
 
@@ -286,7 +286,7 @@ class TestCalendarService:
                 user_name="Test User",
                 user_email="test@example.com",
                 leave_date=date(2026, 1, 5),
-                leave_type=LeaveType.FULL,
+                leave_type=LeaveType.full,
             )
 
             assert event_id == "event123"
@@ -315,7 +315,7 @@ class TestCalendarService:
                 user_name="Test User",
                 user_email=None,
                 leave_date=date(2026, 1, 5),
-                leave_type=LeaveType.HALF_PM,
+                leave_type=LeaveType.half_pm,
             )
 
             assert event_id == "event456"
@@ -353,8 +353,8 @@ class TestHarvestService:
             entry_id = await service.create_time_entry(
                 harvest_user_id=12345,
                 leave_date=date(2026, 1, 5),
-                leave_type=LeaveType.FULL,
-                category=LeaveCategory.VACATION,
+                leave_type=LeaveType.full,
+                category=LeaveCategory.vacation,
             )
 
             assert entry_id == 789

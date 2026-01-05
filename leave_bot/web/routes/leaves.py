@@ -120,14 +120,14 @@ async def retry_leave_sync(
     if not leave:
         raise HTTPException(status_code=404, detail="Leave record not found")
 
-    if leave.status != LeaveStatus.FAILED:
+    if leave.status != LeaveStatus.failed:
         raise HTTPException(
             status_code=400,
             detail=f"Cannot retry leave with status {leave.status.value}",
         )
 
     # Reset status to confirmed for retry
-    leave.status = LeaveStatus.CONFIRMED
+    leave.status = LeaveStatus.confirmed
     leave.error_message = None
     await session.commit()
 
@@ -154,7 +154,7 @@ async def delete_leave(
         raise HTTPException(status_code=404, detail="Leave record not found")
 
     # Cancel sync first
-    if leave.status == LeaveStatus.COMPLETED:
+    if leave.status == LeaveStatus.completed:
         sync_service = SyncService()
         await sync_service.cancel_leave(leave, session)
 
@@ -192,7 +192,7 @@ async def get_leave_stats(
             LeaveRecord.leave_category,
             func.count(LeaveRecord.id).label("count"),
         )
-        .where(LeaveRecord.status == LeaveStatus.COMPLETED)
+        .where(LeaveRecord.status == LeaveStatus.completed)
         .group_by(LeaveRecord.leave_category)
     )
 

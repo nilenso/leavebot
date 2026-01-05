@@ -77,7 +77,7 @@ class TestMessageHandler:
 
         with patch("leave_bot.bot.handlers.get_settings") as mock_settings:
             mock_settings.return_value.slack_channel_id = "C12345678"
-            mock_settings.return_value.trigger_keywords = ["leave"]
+            mock_settings.return_value.trigger_keywords_list = ["leave"]
 
             await handle_message(mock_event, mock_say, mock_slack_client)
 
@@ -92,7 +92,7 @@ class TestMessageHandler:
 
         with patch("leave_bot.bot.handlers.get_settings") as mock_settings:
             mock_settings.return_value.slack_channel_id = "C12345678"
-            mock_settings.return_value.trigger_keywords = ["leave"]
+            mock_settings.return_value.trigger_keywords_list = ["leave"]
 
             await handle_message(mock_event, mock_say, mock_slack_client)
 
@@ -107,7 +107,7 @@ class TestMessageHandler:
 
         with patch("leave_bot.bot.handlers.get_settings") as mock_settings:
             mock_settings.return_value.slack_channel_id = "C12345678"
-            mock_settings.return_value.trigger_keywords = ["leave", "ooo"]
+            mock_settings.return_value.trigger_keywords_list = ["leave", "ooo"]
 
             await handle_message(mock_event, mock_say, mock_slack_client)
 
@@ -229,9 +229,9 @@ class TestBlockBuilders:
             id=1,
             user_id=1,
             date=date(2026, 1, 5),
-            leave_type=LeaveType.FULL,
-            leave_category=LeaveCategory.VACATION,
-            status=LeaveStatus.COMPLETED,
+            leave_type=LeaveType.full,
+            leave_category=LeaveCategory.vacation,
+            status=LeaveStatus.completed,
         )
 
         blocks = build_success_message([record])
