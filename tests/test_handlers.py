@@ -185,9 +185,11 @@ class TestBlockBuilders:
 
         parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[LeaveDate(date="2026-01-05", type="full", category="vacation")],
             original_text_summary="Leave on the 5th",
+            ambiguity_notes="",
         )
 
         blocks = build_confirmation_message(parsed, "test-action-id")
@@ -204,9 +206,11 @@ class TestBlockBuilders:
 
         parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[LeaveDate(date="2026-01-05", type="full", category="vacation")],
             original_text_summary="Leave on the 5th",
+            ambiguity_notes="",
         )
 
         blocks = build_confirmation_message(

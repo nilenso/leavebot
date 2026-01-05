@@ -110,12 +110,11 @@ def mock_slack_client() -> MagicMock:
 
 @pytest.fixture
 def mock_openai_response():
-    """Create a mock OpenAI response factory."""
+    """Create a mock OpenAI Responses API response factory."""
 
     def _create_response(parsed_data):
         response = MagicMock()
-        response.choices = [MagicMock()]
-        response.choices[0].message.parsed = parsed_data
+        response.output_text = parsed_data.model_dump_json()
         return response
 
     return _create_response

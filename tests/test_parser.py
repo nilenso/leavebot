@@ -24,6 +24,7 @@ class TestParsedLeaveModel:
             confidence="high",
             dates=[LeaveDate(date="2026-01-05", type="full", category="vacation")],
             original_text_summary="Leave on January 5th",
+            ambiguity_notes="",
         )
 
         assert parsed.is_leave_request is True
@@ -34,9 +35,11 @@ class TestParsedLeaveModel:
         """Test sick leave parsing."""
         parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[LeaveDate(date="2026-01-05", type="full", category="sick")],
             original_text_summary="Sick leave",
+            ambiguity_notes="",
         )
 
         assert parsed.dates[0].category == "sick"
@@ -45,12 +48,14 @@ class TestParsedLeaveModel:
         """Test half-day leave types."""
         parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[
                 LeaveDate(date="2026-01-05", type="half_am", category="vacation"),
                 LeaveDate(date="2026-01-06", type="half_pm", category="vacation"),
             ],
             original_text_summary="Half-day leaves",
+            ambiguity_notes="",
         )
 
         assert parsed.dates[0].type == "half_am"
@@ -64,6 +69,7 @@ class TestParsedLeaveModel:
             confidence="high",
             dates=[LeaveDate(date="2026-01-05", type="full", category="vacation")],
             original_text_summary="Cancel leave",
+            ambiguity_notes="",
         )
 
         assert parsed.is_cancellation is True
@@ -77,9 +83,11 @@ class TestValidateParsedDates:
         reference = date(2026, 1, 2)
         parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[LeaveDate(date="2026-01-05", type="full", category="vacation")],
             original_text_summary="Future leave",
+            ambiguity_notes="",
         )
 
         valid, warnings = validate_parsed_dates(parsed, reference)
@@ -92,9 +100,11 @@ class TestValidateParsedDates:
         reference = date(2026, 1, 2)
         parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[LeaveDate(date="2025-12-31", type="full", category="vacation")],
             original_text_summary="Old leave",
+            ambiguity_notes="",
         )
 
         valid, warnings = validate_parsed_dates(parsed, reference)
@@ -108,9 +118,11 @@ class TestValidateParsedDates:
         reference = date(2026, 1, 2)
         parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[LeaveDate(date="invalid-date", type="full", category="vacation")],
             original_text_summary="Bad date",
+            ambiguity_notes="",
         )
 
         valid, warnings = validate_parsed_dates(parsed, reference)
@@ -124,6 +136,7 @@ class TestValidateParsedDates:
         reference = date(2026, 1, 2)
         parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[
                 LeaveDate(date="2026-01-05", type="full", category="vacation"),
@@ -131,6 +144,7 @@ class TestValidateParsedDates:
                 LeaveDate(date="2026-01-10", type="full", category="vacation"),
             ],
             original_text_summary="Multiple dates",
+            ambiguity_notes="",
         )
 
         valid, warnings = validate_parsed_dates(parsed, reference)
@@ -147,17 +161,17 @@ class TestParseLeaveMessage:
         """Test parsing a simple leave message."""
         mock_parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[LeaveDate(date="2026-01-05", type="full", category="vacation")],
             original_text_summary="Leave on the 5th",
+            ambiguity_notes="",
         )
 
         with patch("leave_bot.bot.parser.OpenAI") as mock_client:
             mock_instance = MagicMock()
             mock_client.return_value = mock_instance
-            mock_instance.beta.chat.completions.parse.return_value = mock_openai_response(
-                mock_parsed
-            )
+            mock_instance.responses.create.return_value = mock_openai_response(mock_parsed)
 
             result = await parse_leave_message(
                 "I'll be on leave on the 5th",
@@ -172,17 +186,17 @@ class TestParseLeaveMessage:
         """Test that WFH is not parsed as leave."""
         mock_parsed = ParsedLeave(
             is_leave_request=False,
+            is_cancellation=False,
             confidence="high",
             dates=[],
             original_text_summary="Working from home",
+            ambiguity_notes="",
         )
 
         with patch("leave_bot.bot.parser.OpenAI") as mock_client:
             mock_instance = MagicMock()
             mock_client.return_value = mock_instance
-            mock_instance.beta.chat.completions.parse.return_value = mock_openai_response(
-                mock_parsed
-            )
+            mock_instance.responses.create.return_value = mock_openai_response(mock_parsed)
 
             result = await parse_leave_message(
                 "WFH today",
@@ -197,7 +211,7 @@ class TestParseLeaveMessage:
         with patch("leave_bot.bot.parser.OpenAI") as mock_client:
             mock_instance = MagicMock()
             mock_client.return_value = mock_instance
-            mock_instance.beta.chat.completions.parse.side_effect = Exception("API Error")
+            mock_instance.responses.create.side_effect = Exception("API Error")
 
             result = await parse_leave_message(
                 "On leave tomorrow",
@@ -212,37 +226,22 @@ class TestParseLeaveMessage:
 class TestSpecificationExamples:
     """Tests based on examples from the specification."""
 
-    @pytest.fixture
-    def create_mock_parse(self, mock_openai_response):
-        """Create a mock parse helper."""
-
-        def _create(parsed_data):
-            with patch("leave_bot.bot.parser.OpenAI") as mock_client:
-                mock_instance = MagicMock()
-                mock_client.return_value = mock_instance
-                mock_instance.beta.chat.completions.parse.return_value = mock_openai_response(
-                    parsed_data
-                )
-                return mock_instance
-
-        return _create
-
     @pytest.mark.asyncio
     async def test_tomorrow_leave(self, mock_openai_response):
         """Test: 'On leave tomorrow'"""
         mock_parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[LeaveDate(date="2026-01-03", type="full", category="vacation")],
             original_text_summary="Leave tomorrow",
+            ambiguity_notes="",
         )
 
         with patch("leave_bot.bot.parser.OpenAI") as mock_client:
             mock_instance = MagicMock()
             mock_client.return_value = mock_instance
-            mock_instance.beta.chat.completions.parse.return_value = mock_openai_response(
-                mock_parsed
-            )
+            mock_instance.responses.create.return_value = mock_openai_response(mock_parsed)
 
             result = await parse_leave_message(
                 "On leave tomorrow",
@@ -258,6 +257,7 @@ class TestSpecificationExamples:
         """Test: 'Taking sick leave 5th-7th'"""
         mock_parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[
                 LeaveDate(date="2026-01-05", type="full", category="sick"),
@@ -265,14 +265,13 @@ class TestSpecificationExamples:
                 LeaveDate(date="2026-01-07", type="full", category="sick"),
             ],
             original_text_summary="Sick leave 5th to 7th",
+            ambiguity_notes="",
         )
 
         with patch("leave_bot.bot.parser.OpenAI") as mock_client:
             mock_instance = MagicMock()
             mock_client.return_value = mock_instance
-            mock_instance.beta.chat.completions.parse.return_value = mock_openai_response(
-                mock_parsed
-            )
+            mock_instance.responses.create.return_value = mock_openai_response(mock_parsed)
 
             result = await parse_leave_message(
                 "Taking sick leave 5th-7th",
@@ -288,17 +287,17 @@ class TestSpecificationExamples:
         """Test: 'Half day tomorrow afternoon'"""
         mock_parsed = ParsedLeave(
             is_leave_request=True,
+            is_cancellation=False,
             confidence="high",
             dates=[LeaveDate(date="2026-01-03", type="half_pm", category="vacation")],
             original_text_summary="Half day afternoon tomorrow",
+            ambiguity_notes="",
         )
 
         with patch("leave_bot.bot.parser.OpenAI") as mock_client:
             mock_instance = MagicMock()
             mock_client.return_value = mock_instance
-            mock_instance.beta.chat.completions.parse.return_value = mock_openai_response(
-                mock_parsed
-            )
+            mock_instance.responses.create.return_value = mock_openai_response(mock_parsed)
 
             result = await parse_leave_message(
                 "Half day tomorrow afternoon",

@@ -31,27 +31,21 @@ class LeaveDate(BaseModel):
     """A single leave date with type and category."""
 
     date: str = Field(..., description="Date in YYYY-MM-DD format")
-    type: Literal["full", "half_am", "half_pm"] = Field(default="full", description="Type of leave")
-    category: Literal["vacation", "sick"] = Field(
-        default="vacation", description="Category of leave"
-    )
+    type: Literal["full", "half_am", "half_pm"] = Field(..., description="Type of leave")
+    category: Literal["vacation", "sick"] = Field(..., description="Category of leave")
 
 
 class ParsedLeave(BaseModel):
     """Result of parsing a leave message."""
 
     is_leave_request: bool = Field(..., description="Whether this is a leave request")
-    is_cancellation: bool = Field(
-        default=False, description="Whether this is cancelling existing leave"
-    )
+    is_cancellation: bool = Field(..., description="Whether this is cancelling existing leave")
     confidence: Literal["high", "medium", "low"] = Field(
-        default="medium", description="Confidence level of parsing"
+        ..., description="Confidence level of parsing"
     )
-    dates: list[LeaveDate] = Field(default_factory=list, description="List of leave dates")
-    original_text_summary: str = Field(
-        default="", description="Brief summary of the original message"
-    )
-    ambiguity_notes: str | None = Field(default=None, description="Notes about any ambiguities")
+    dates: list[LeaveDate] = Field(..., description="List of leave dates")
+    original_text_summary: str = Field(..., description="Brief summary of the original message")
+    ambiguity_notes: str = Field(..., description="Notes about any ambiguities, or empty string")
 
 
 SYSTEM_PROMPT = """You are a leave message parser for a company Slack bot. Your job is to extract structured leave information from messages posted in the #wfh-leaves-ooo channel.
@@ -175,10 +169,19 @@ Extract structured leave information following the rules. If there is conversati
                 {"role": "user", "content": user_prompt},
             ],
         )
+
+        # Build schema with additionalProperties: false (required by OpenAI)
+        schema = ParsedLeave.model_json_schema()
+        schema["additionalProperties"] = False
+        # Also fix nested $defs
+        if "$defs" in schema:
+            for def_schema in schema["$defs"].values():
+                def_schema["additionalProperties"] = False
+
         json_schema_format: ResponseFormatTextJSONSchemaConfigParam = {
             "type": "json_schema",
             "name": "leave_parse_result",
-            "schema": cast(dict[str, Any], ParsedLeave.model_json_schema()),
+            "schema": cast(dict[str, Any], schema),
             "strict": True,
         }
         text_config: ResponseTextConfigParam = {"format": json_schema_format}
@@ -206,7 +209,9 @@ Extract structured leave information following the rules. If there is conversati
         logger.error("llm_parse_error", error=str(e))
         return ParsedLeave(
             is_leave_request=False,
+            is_cancellation=False,
             confidence="low",
+            dates=[],
             original_text_summary=f"Parse error: {e}",
             ambiguity_notes=str(e),
         )
