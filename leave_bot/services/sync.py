@@ -7,9 +7,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from leave_bot.database import get_session
-from leave_bot.models.leave import LeaveRecord, LeaveStatus
+from leave_bot.models.leave import LeaveRecord, LeaveStatus, LeaveType
 from leave_bot.models.user import User
-from leave_bot.services.calendar import CalendarService
+from leave_bot.services.calendar import CalendarService, group_consecutive_dates
 from leave_bot.services.harvest import HarvestService
 from leave_bot.utils.logging import get_logger
 
@@ -114,6 +114,175 @@ class SyncService:
                 calendar_event_id=calendar_event_id,
                 harvest_entry_id=harvest_entry_id,
             )
+
+    async def sync_leaves(
+        self,
+        leave_records: list[LeaveRecord],
+        user: User,
+        session: AsyncSession,
+    ) -> list[SyncResult]:
+        """Sync multiple leave records, creating spanning calendar events for consecutive full days.
+
+        Args:
+            leave_records: List of leave records to sync
+            user: The user these leaves belong to
+            session: Database session
+
+        Returns:
+            List of SyncResult for each leave record
+        """
+        if not leave_records:
+            return []
+
+        logger.info(
+            "syncing_leaves_batch",
+            user_id=user.id,
+            num_records=len(leave_records),
+        )
+
+        # Separate full-day leaves from half-day leaves
+        full_day_records: list[LeaveRecord] = []
+        half_day_records: list[LeaveRecord] = []
+
+        for record in leave_records:
+            if record.leave_type == LeaveType.full:
+                full_day_records.append(record)
+            else:
+                half_day_records.append(record)
+
+        results: list[SyncResult] = []
+
+        # Process full-day leaves as spans
+        if full_day_records:
+            span_results = await self._sync_full_day_spans(full_day_records, user, session)
+            results.extend(span_results)
+
+        # Process half-day leaves individually (they need timed events)
+        for record in half_day_records:
+            result = await self.sync_leave(record, user, session)
+            results.append(result)
+
+        return results
+
+    async def _sync_full_day_spans(
+        self,
+        records: list[LeaveRecord],
+        user: User,
+        session: AsyncSession,
+    ) -> list[SyncResult]:
+        """Create spanning calendar events for groups of consecutive full-day leaves.
+
+        Args:
+            records: Full-day leave records
+            user: User these leaves belong to
+            session: Database session
+
+        Returns:
+            List of SyncResult for each record
+        """
+        # Build a mapping of date to record for quick lookup
+        date_to_record: dict = {r.date: r for r in records}
+        dates = list(date_to_record.keys())
+
+        # Group consecutive dates
+        date_groups = group_consecutive_dates(dates)
+
+        results: list[SyncResult] = []
+
+        for group in date_groups:
+            start_date = group[0]
+            end_date = group[-1]
+
+            # Get all records in this span
+            span_records = [date_to_record[d] for d in group]
+
+            logger.info(
+                "creating_calendar_span",
+                user_id=user.id,
+                start_date=start_date.isoformat(),
+                end_date=end_date.isoformat(),
+                num_days=len(group),
+            )
+
+            calendar_event_id: str | None = None
+            errors: list[str] = []
+
+            # Create a single spanning calendar event
+            try:
+                if len(group) == 1:
+                    # Single day, use regular event creation
+                    calendar_event_id = await self.calendar.create_event(
+                        user_name=user.slack_display_name,
+                        user_email=user.email,
+                        leave_date=start_date,
+                        leave_type=LeaveType.full,
+                        timezone=user.slack_timezone,
+                    )
+                else:
+                    # Multi-day span
+                    calendar_event_id = await self.calendar.create_spanning_event(
+                        user_name=user.slack_display_name,
+                        user_email=user.email,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+
+                # Assign the same calendar event ID to all records in the span
+                for record in span_records:
+                    record.calendar_event_id = calendar_event_id
+
+            except Exception as e:
+                error_msg = f"Calendar sync failed: {e}"
+                logger.error("calendar_span_sync_failed", error=str(e))
+                errors.append(error_msg)
+
+            # Create Harvest entries individually (one per day)
+            for record in span_records:
+                harvest_entry_id: int | None = None
+                record_errors = errors.copy()
+
+                if user.harvest_user_id:
+                    try:
+                        harvest_entry_id = await self.harvest.create_time_entry(
+                            harvest_user_id=user.harvest_user_id,
+                            leave_date=record.date,
+                            leave_type=record.leave_type,
+                            category=record.leave_category,
+                        )
+                        record.harvest_entry_id = harvest_entry_id
+                    except Exception as e:
+                        error_msg = f"Harvest sync failed: {e}"
+                        logger.error("harvest_sync_failed", error=str(e))
+                        record_errors.append(error_msg)
+                else:
+                    logger.info("skipping_harvest_no_user_id", user_id=user.id)
+
+                # Update record status
+                if record_errors:
+                    record.status = LeaveStatus.failed
+                    record.error_message = "; ".join(record_errors)
+                    record.retry_count += 1
+                    results.append(
+                        SyncResult(
+                            success=False,
+                            calendar_event_id=calendar_event_id,
+                            harvest_entry_id=harvest_entry_id,
+                            error_message=record.error_message,
+                        )
+                    )
+                else:
+                    record.status = LeaveStatus.completed
+                    record.error_message = None
+                    results.append(
+                        SyncResult(
+                            success=True,
+                            calendar_event_id=calendar_event_id,
+                            harvest_entry_id=harvest_entry_id,
+                        )
+                    )
+
+        await session.commit()
+        return results
 
     async def cancel_leave(
         self,
