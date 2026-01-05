@@ -57,6 +57,8 @@ class PendingAction(Base):
     slack_message_ts: Mapped[str | None] = mapped_column(String(30), nullable=True)
     slack_channel_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
     slack_thread_ts: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Bot's confirmation message ts (for updating after sync)
+    slack_bot_message_ts: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     # Status tracking
     status: Mapped[ActionStatus] = mapped_column(

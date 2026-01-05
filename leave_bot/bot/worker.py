@@ -138,35 +138,21 @@ class Worker:
                 failed_records.append(record)
 
         # Update Slack message
-        if action.slack_channel_id and action.slack_message_ts:
+        if action.slack_channel_id and action.slack_bot_message_ts:
             try:
-                # Find the bot's reply message (thread)
-                response = await self.slack_client.conversations_replies(
-                    channel=action.slack_channel_id,
-                    ts=action.slack_message_ts,
-                    limit=10,
-                )
-
-                # Find the last bot message in thread
-                bot_message_ts = None
-                for msg in response.get("messages", []):
-                    if msg.get("bot_id"):
-                        bot_message_ts = msg.get("ts")
-
-                if bot_message_ts:
-                    if failed_records:
-                        error_msg = f"Failed to sync {len(failed_records)} leave(s)"
-                        await self.slack_client.chat_update(
-                            channel=action.slack_channel_id,
-                            ts=bot_message_ts,
-                            blocks=blocks.build_error_message(error_msg, retry_available=True),
-                        )
-                    else:
-                        await self.slack_client.chat_update(
-                            channel=action.slack_channel_id,
-                            ts=bot_message_ts,
-                            blocks=blocks.build_success_message(successful_records),
-                        )
+                if failed_records:
+                    error_msg = f"Failed to sync {len(failed_records)} leave(s)"
+                    await self.slack_client.chat_update(
+                        channel=action.slack_channel_id,
+                        ts=action.slack_bot_message_ts,
+                        blocks=blocks.build_error_message(error_msg, retry_available=True),
+                    )
+                else:
+                    await self.slack_client.chat_update(
+                        channel=action.slack_channel_id,
+                        ts=action.slack_bot_message_ts,
+                        blocks=blocks.build_success_message(successful_records),
+                    )
             except Exception as e:
                 logger.error("slack_update_failed", error=str(e))
 
@@ -220,22 +206,13 @@ class Worker:
                 action.status = ActionStatus.expired
 
                 # Update Slack message to disable buttons
-                if action.slack_channel_id and action.slack_message_ts:
+                if action.slack_channel_id and action.slack_bot_message_ts:
                     try:
-                        response = await self.slack_client.conversations_replies(
+                        await self.slack_client.chat_update(
                             channel=action.slack_channel_id,
-                            ts=action.slack_message_ts,
-                            limit=10,
+                            ts=action.slack_bot_message_ts,
+                            blocks=blocks.build_expired_message(),
                         )
-
-                        for msg in response.get("messages", []):
-                            if msg.get("bot_id"):
-                                await self.slack_client.chat_update(
-                                    channel=action.slack_channel_id,
-                                    ts=msg["ts"],
-                                    blocks=blocks.build_expired_message(),
-                                )
-                                break
                     except Exception as e:
                         logger.error("slack_expire_update_failed", error=str(e))
 
@@ -243,8 +220,7 @@ class Worker:
             logger.info("expired_actions", count=len(expired_actions))
             return len(expired_actions)
 
-    async def retry_failed_syncs(self) -> int:
-        return await self.sync_service.retry_failed_leaves()
+
 
     async def run(self) -> None:
         self.running = True
@@ -258,11 +234,6 @@ class Worker:
                 processed = await self.process_confirmed_actions()
                 if processed > 0:
                     logger.info("processed_actions", count=processed)
-
-                # Retry failed syncs occasionally
-                retried = await self.retry_failed_syncs()
-                if retried > 0:
-                    logger.info("retried_syncs", count=retried)
 
                 # Expire old actions less frequently
                 expire_counter += POLL_INTERVAL_SECONDS

@@ -277,10 +277,21 @@ async def handle_message(
             },
         )
 
-    await say(
+    response = await say(
         blocks=confirmation_blocks,
         thread_ts=message_ts,
     )
+
+    # Store bot message ts for later updates
+    if response and response.get("ts"):
+        async with get_session() as session:
+            result = await session.execute(
+                select(PendingAction).where(PendingAction.id == pending_action.id)
+            )
+            action = result.scalar_one_or_none()
+            if action:
+                action.slack_bot_message_ts = response["ts"]
+                await session.commit()
 
     logger.info(
         "confirmation_sent",

@@ -1,12 +1,9 @@
 """Sync orchestrator for coordinating Calendar and Harvest updates."""
 
-import asyncio
 from dataclasses import dataclass
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from leave_bot.database import get_session
 from leave_bot.models.leave import LeaveRecord, LeaveStatus, LeaveType
 from leave_bot.models.user import User
 from leave_bot.services.calendar import CalendarService, group_consecutive_dates
@@ -14,10 +11,6 @@ from leave_bot.services.harvest import HarvestService
 from leave_bot.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Retry configuration
-MAX_RETRIES = 3
-BASE_DELAY_SECONDS = 5
 
 
 @dataclass
@@ -330,41 +323,4 @@ class SyncService:
             logger.info("leave_cancelled", leave_id=leave_record.id)
             return SyncResult(success=True)
 
-    async def retry_failed_leaves(self) -> int:
-        async with get_session() as session:
-            # Get failed leaves that haven't exceeded retry limit
-            result = await session.execute(
-                select(LeaveRecord)
-                .where(LeaveRecord.status == LeaveStatus.failed)
-                .where(LeaveRecord.retry_count < MAX_RETRIES)
-                .order_by(LeaveRecord.updated_at)
-                .limit(10)
-            )
-            failed_leaves = result.scalars().all()
 
-            if not failed_leaves:
-                return 0
-
-            logger.info("retrying_failed_leaves", count=len(failed_leaves))
-            success_count = 0
-
-            for leave in failed_leaves:
-                # Fetch user
-                user_result = await session.execute(select(User).where(User.id == leave.user_id))
-                user = user_result.scalar_one_or_none()
-
-                if not user:
-                    leave.status = LeaveStatus.cancelled
-                    leave.error_message = "User not found"
-                    continue
-
-                # Exponential backoff delay
-                delay = BASE_DELAY_SECONDS * (2**leave.retry_count)
-                await asyncio.sleep(delay)
-
-                # Retry sync
-                result = await self.sync_leave(leave, user, session)
-                if result.success:
-                    success_count += 1
-
-            return success_count
