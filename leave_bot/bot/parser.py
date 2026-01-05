@@ -1,11 +1,16 @@
 """LLM-based leave message parser using OpenAI."""
 
+import json
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo
 
 from openai import OpenAI
-from openai.types.chat import ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam
+from openai.types.responses import (
+    ResponseFormatTextJSONSchemaConfigParam,
+    ResponseInputParam,
+    ResponseTextConfigParam,
+)
 from pydantic import BaseModel, Field
 
 from leave_bot.config import get_settings
@@ -122,23 +127,29 @@ Extract structured leave information following the rules."""
     )
 
     try:
-        system_msg: ChatCompletionSystemMessageParam = {"role": "system", "content": SYSTEM_PROMPT}
-        user_msg: ChatCompletionUserMessageParam = {"role": "user", "content": user_prompt}
-        response = client.beta.chat.completions.parse(
+        input_messages = cast(
+            ResponseInputParam,
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        json_schema_format: ResponseFormatTextJSONSchemaConfigParam = {
+            "type": "json_schema",
+            "name": "leave_parse_result",
+            "schema": cast(dict[str, Any], ParsedLeave.model_json_schema()),
+            "strict": True,
+        }
+        text_config: ResponseTextConfigParam = {"format": json_schema_format}
+        response = client.responses.create(
             model=settings.openai_model,
-            messages=[system_msg, user_msg],
-            response_format=ParsedLeave,
+            input=input_messages,
+            text=text_config,
+            reasoning={"effort": "low"},
         )
 
-        parsed = response.choices[0].message.parsed
-
-        if parsed is None:
-            logger.warning("llm_returned_none", message=message_text[:100])
-            return ParsedLeave(
-                is_leave_request=False,
-                confidence="low",
-                original_text_summary="Failed to parse message",
-            )
+        result = json.loads(response.output_text)
+        parsed = ParsedLeave.model_validate(result)
 
         logger.info(
             "message_parsed",
