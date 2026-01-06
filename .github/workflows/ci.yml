@@ -152,6 +152,57 @@ jobs:
     environment: production
 
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate .env file
+        run: |
+          cat > .env.production << 'EOF'
+          # Database
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+          # Slack
+          SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_APP_TOKEN=${{ secrets.SLACK_APP_TOKEN }}
+          SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET }}
+          SLACK_CHANNEL_ID=${{ secrets.SLACK_CHANNEL_ID }}
+
+          # OpenAI
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL=${{ secrets.OPENAI_MODEL }}
+
+          # Google Calendar
+          GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 }}
+          GOOGLE_CALENDAR_ID=${{ secrets.GOOGLE_CALENDAR_ID }}
+
+          # Harvest
+          HARVEST_ACCESS_TOKEN=${{ secrets.HARVEST_ACCESS_TOKEN }}
+          HARVEST_ACCOUNT_ID=${{ secrets.HARVEST_ACCOUNT_ID }}
+          HARVEST_PROJECT_ID=${{ secrets.HARVEST_PROJECT_ID }}
+          HARVEST_VACATION_TASK_ID=${{ secrets.HARVEST_VACATION_TASK_ID }}
+          HARVEST_SICK_TASK_ID=${{ secrets.HARVEST_SICK_TASK_ID }}
+
+          # Google OAuth (Web Admin)
+          GOOGLE_OAUTH_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET=${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          SESSION_SECRET_KEY=${{ secrets.SESSION_SECRET_KEY }}
+          ALLOWED_EMAIL_DOMAIN=${{ secrets.ALLOWED_EMAIL_DOMAIN }}
+          OAUTH_REDIRECT_URI=${{ secrets.OAUTH_REDIRECT_URI }}
+
+          # Bot Configuration
+          DEFAULT_TIMEZONE=Asia/Kolkata
+          TRIGGER_KEYWORDS=leave,ooo,wfh,sick,vacation,pto,day off
+          EOF
+
+      - name: Copy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: ".env.production,docker-compose.prod.yml"
+          target: "~/leave-bot"
+          strip_components: 0
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -164,23 +215,26 @@ jobs:
           script: |
             set -e
             cd ~/leave-bot
-            
+
+            # Use the generated .env file
+            mv .env.production .env
+
             # Authenticate with GHCR (if repo is private)
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || true
-            
+
             # Pull latest image using production compose
             IMAGE_NAME=$IMAGE_NAME docker compose -f docker-compose.prod.yml pull
-            
+
             # Restart services with new image
             IMAGE_NAME=$IMAGE_NAME docker compose -f docker-compose.prod.yml up -d
-            
+
             # Wait for services to be healthy
             sleep 10
-            
+
             # Run migrations
             IMAGE_NAME=$IMAGE_NAME docker compose -f docker-compose.prod.yml exec -T bot python -m alembic upgrade head
-            
+
             # Cleanup old images
             docker image prune -f
-            
+
             echo "✓ Deployment complete!"

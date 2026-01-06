@@ -22,6 +22,16 @@ All environment variables and runtime configuration options.
 | `HARVEST_VACATION_TASK_ID` | Task ID for vacation leave | `87654321` |
 | `HARVEST_SICK_TASK_ID` | Task ID for sick leave | `87654322` |
 
+### Web Admin Authentication
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth Client ID | `123456.apps.googleusercontent.com` |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth Client Secret | `GOCSPX-xxx` |
+| `SESSION_SECRET_KEY` | Secret key for session encryption | `random-32-char-string` |
+| `ALLOWED_EMAIL_DOMAIN` | Email domain allowed to access | `nilenso.com` |
+| `OAUTH_REDIRECT_URI` | OAuth callback URL | `https://leavebot.nilenso.com/auth/callback` |
+
 ### Optional Variables
 
 | Variable | Description | Default |
@@ -69,6 +79,13 @@ class Settings(BaseSettings):
     default_timezone: str = "Asia/Kolkata"
     pending_action_expiry_minutes: int = 60
     
+    # Web Admin Authentication
+    google_oauth_client_id: str
+    google_oauth_client_secret: str
+    session_secret_key: str
+    allowed_email_domain: str = "nilenso.com"
+    oauth_redirect_uri: str = "http://localhost:8000/auth/callback"
+    
     # Debug
     debug: bool = False
     
@@ -112,11 +129,52 @@ HARVEST_PROJECT_ID=12345678
 HARVEST_VACATION_TASK_ID=87654321
 HARVEST_SICK_TASK_ID=87654322
 
+# Web Admin Authentication
+GOOGLE_OAUTH_CLIENT_ID=123456.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-xxx
+SESSION_SECRET_KEY=generate-a-random-secret-key-here
+ALLOWED_EMAIL_DOMAIN=nilenso.com
+OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback
+
 # Optional
 TRIGGER_KEYWORDS=leave,ooo,wfh,sick,vacation,pto,day off
 DEFAULT_TIMEZONE=Asia/Kolkata
 PENDING_ACTION_EXPIRY_MINUTES=60
 DEBUG=false
+```
+
+## Google OAuth Configuration
+
+The web admin dashboard requires Google OAuth for authentication.
+
+### Setting Up Google OAuth
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create a new project or select existing one
+3. Configure OAuth consent screen:
+   - User type: Internal (for Google Workspace)
+   - App name: "Leave Bot Admin"
+   - Scopes: email, profile, openid
+4. Create OAuth 2.0 Client ID:
+   - Application type: Web application
+   - Authorized redirect URIs:
+     - Development: `http://localhost:8000/auth/callback`
+     - Production: `https://leavebot.nilenso.com/auth/callback`
+5. Copy Client ID and Client Secret to `.env`
+
+### Generating Session Secret
+
+```bash
+# Generate a random secret key
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+### Domain Restriction
+
+Only users with email addresses from the configured domain can access the dashboard:
+
+```bash
+ALLOWED_EMAIL_DOMAIN=nilenso.com
 ```
 
 ## Slack Configuration

@@ -13,7 +13,20 @@ The Leave Bot includes a FastAPI-based admin interface for managing users, viewi
 
 ### Authentication
 
-HTTP Basic Auth via Caddy reverse proxy. Single shared password.
+Google OAuth with domain restriction. Only users with `@nilenso.com` email addresses can access the dashboard.
+
+**Setup:**
+1. Create OAuth credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Add authorized redirect URI: `https://leavebot.nilenso.com/auth/callback`
+3. Configure environment variables (see [Configuration](configuration.md))
+
+**Login Flow:**
+1. Visit `/` → Redirected to `/auth/login`
+2. Click "Sign in with Google"
+3. Authenticate with Google Workspace account
+4. Redirected back to dashboard
+
+**Logout:** Click "Logout" in the navigation bar or visit `/auth/logout`
 
 ## API Endpoints
 

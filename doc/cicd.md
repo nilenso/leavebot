@@ -63,8 +63,17 @@ The CI/CD pipeline is defined in `.github/workflows/ci.yml` and handles:
 
 #### Required Secrets
 
-Go to **Settings → Secrets and variables → Actions** and add:
+All application secrets are stored in GitHub and deployed to the server during CI/CD.
 
+Run the setup script to add all secrets interactively:
+
+```bash
+./scripts/setup-github-secrets.sh
+```
+
+Or add them manually via `gh secret set <NAME>`:
+
+**Deployment Secrets:**
 | Secret | Description |
 |--------|-------------|
 | `SSH_HOST` | Production server IP or hostname |
@@ -72,12 +81,34 @@ Go to **Settings → Secrets and variables → Actions** and add:
 | `SSH_PRIVATE_KEY` | SSH private key for authentication |
 | `GHCR_PAT` | GitHub PAT with `read:packages` scope (only if repo is private) |
 
+**Application Secrets:**
+| Secret | Description |
+|--------|-------------|
+| `DB_PASSWORD` | PostgreSQL password |
+| `SLACK_BOT_TOKEN` | Slack Bot OAuth token (`xoxb-...`) |
+| `SLACK_APP_TOKEN` | Slack App-level token (`xapp-...`) |
+| `SLACK_SIGNING_SECRET` | Slack signing secret |
+| `SLACK_CHANNEL_ID` | Channel ID for #wfh-leaves-ooo |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `OPENAI_MODEL` | OpenAI model (e.g., `gpt-4o-mini`) |
+| `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` | Base64 encoded service account JSON |
+| `GOOGLE_CALENDAR_ID` | Google Calendar ID for leave events |
+| `HARVEST_ACCESS_TOKEN` | Harvest Personal Access Token |
+| `HARVEST_ACCOUNT_ID` | Harvest Account ID |
+| `HARVEST_PROJECT_ID` | Harvest Project ID for leave entries |
+| `HARVEST_VACATION_TASK_ID` | Harvest Task ID for vacation/PTO |
+| `HARVEST_SICK_TASK_ID` | Harvest Task ID for sick leave |
+| `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth Client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth Client Secret |
+| `SESSION_SECRET_KEY` | Random secret for session encryption |
+| `ALLOWED_EMAIL_DOMAIN` | Email domain allowed to access admin |
+| `OAUTH_REDIRECT_URI` | OAuth callback URL |
+
 #### Environment Setup
 
 Create a **production** environment at **Settings → Environments → New environment**:
 - Name: `production`
 - (Optional) Add required reviewers for manual approval
-- (Optional) Add environment-specific secrets
 
 ### 2. Server Setup
 
@@ -89,15 +120,14 @@ On the production server:
 
 # Create deployment directory
 mkdir -p ~/leave-bot
-cd ~/leave-bot
 
-# Copy required files from repo
-# - docker-compose.prod.yml
-# - .env (with production values)
-
-# If repo is private, authenticate with GHCR
-echo "YOUR_GHCR_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+# That's it! The CI/CD pipeline will:
+# - Generate .env from GitHub secrets
+# - Copy docker-compose.prod.yml to the server
+# - Pull and run the containers
 ```
+
+**Note:** The `.env` file is automatically generated and deployed from GitHub secrets during CI/CD. You don't need to manually create or maintain it on the server.
 
 ### 3. Gateway Dependency
 

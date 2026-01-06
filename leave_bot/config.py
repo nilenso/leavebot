@@ -64,6 +64,19 @@ class Settings(BaseSettings):
     web_host: str = Field(default="0.0.0.0", description="Web server host")
     web_port: int = Field(default=8000, description="Web server port")
 
+    # Google OAuth (for web admin authentication)
+    google_oauth_client_id: str = Field(..., description="Google OAuth Client ID")
+    google_oauth_client_secret: str = Field(..., description="Google OAuth Client Secret")
+    session_secret_key: str = Field(..., description="Secret key for session encryption")
+    allowed_email_domain: str = Field(
+        default="nilenso.com",
+        description="Email domain allowed to access admin (e.g., nilenso.com)",
+    )
+    oauth_redirect_uri: str = Field(
+        default="http://localhost:8000/auth/callback",
+        description="OAuth redirect URI",
+    )
+
     # Pending action expiry
     pending_action_expiry_minutes: int = Field(
         default=60,
