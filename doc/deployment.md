@@ -239,56 +239,46 @@ CMD ["uv", "run", "leave-bot", "all"]
    apt install docker-compose-plugin
    ```
 
-3. **Deploy Application**
+3. **Deploy Gateway First**
+   ```bash
+   # The shared gateway must be running before deploying apps
+   # See: https://github.com/nilenso/gateway
+   ```
+
+4. **Deploy Application**
    ```bash
    # Switch to deploy user
    su - deploy
    
-   # Clone repo
-   git clone https://github.com/nilenso/leave-bot.git
-   cd leave-bot
+   # Create app directory
+   mkdir -p ~/leave-bot
+   cd ~/leave-bot
+   
+   # Copy production compose file
+   curl -fsSL https://raw.githubusercontent.com/nilenso/leavebot/main/docker-compose.prod.yml -o docker-compose.prod.yml
    
    # Configure environment
    cp .env.example .env
-   nano .env  # Fill in all values
+   nano .env  # Fill in all values (DB_PASSWORD, LEAVEBOT_DOMAIN, etc.)
    
    # Start services
-   docker compose up -d
-   
-   # Run migrations
-   docker compose exec bot alembic upgrade head
+   docker compose -f docker-compose.prod.yml up -d
    ```
 
-4. **DNS Configuration**
+5. **DNS Configuration**
    - Point `leavebot.nilenso.com` A record to droplet IP
-   - Caddy will automatically obtain Let's Encrypt certificate
+   - Gateway handles TLS automatically via Let's Encrypt
 
-### Caddyfile (Production)
+### Gateway Service
 
-```
-leavebot.nilenso.com {
-    reverse_proxy web:8000
-    
-    # Basic auth
-    basicauth /* {
-        admin {$ADMIN_PASSWORD_HASH}
-    }
-}
-```
+Production uses a shared gateway service ([github.com/nilenso/gateway](https://github.com/nilenso/gateway)) that:
+- Handles TLS termination via Let's Encrypt
+- Routes traffic based on Docker labels
+- Is shared across all nilenso applications
 
-Generate password hash:
-```bash
-docker run -it caddy:2-alpine caddy hash-password
-# Enter password when prompted
-# Add hash to ADMIN_PASSWORD_HASH in .env
-```
+The gateway must be deployed before any apps. See the gateway repo for setup.
 
-### SSL/TLS
-
-Caddy automatically handles:
-- Certificate provisioning via Let's Encrypt
-- Certificate renewal
-- HTTPS redirects
+**Note:** Routes are configured in the gateway repo's `Caddyfile`. Leavebot's web service connects to the shared `web` network.
 
 ### Updates
 
@@ -463,6 +453,7 @@ docker system df
 
 ## Related Documentation
 
+- [CI/CD](cicd.md) - Automated testing and deployment
 - [Configuration](configuration.md) - Environment variables
 - [Architecture](architecture.md) - System components
 - [Web Admin](web-admin.md) - API endpoints
