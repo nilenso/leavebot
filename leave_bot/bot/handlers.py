@@ -99,8 +99,10 @@ async def expire_previous_pending_actions(
     client: AsyncWebClient,
 ) -> None:
     """Expire any pending actions for this user in the same thread and update their Slack messages."""
+    from sqlalchemy import or_
+
     async with get_session() as session:
-        # Find pending actions for this user in the same thread (or top-level if no thread)
+        # Find pending actions for this user in the same thread
         query = (
             select(PendingAction)
             .where(PendingAction.user_id == user_id)
@@ -108,8 +110,17 @@ async def expire_previous_pending_actions(
             .where(PendingAction.status == ActionStatus.pending)
         )
         if thread_ts:
-            query = query.where(PendingAction.slack_thread_ts == thread_ts)
+            # Match actions that are either:
+            # - replies in the same thread (slack_thread_ts == thread_ts), or
+            # - the original message that started the thread (slack_message_ts == thread_ts)
+            query = query.where(
+                or_(
+                    PendingAction.slack_thread_ts == thread_ts,
+                    PendingAction.slack_message_ts == thread_ts,
+                )
+            )
         else:
+            # Top-level message: only match other top-level messages
             query = query.where(PendingAction.slack_thread_ts.is_(None))
 
         result = await session.execute(query)
