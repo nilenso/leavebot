@@ -65,9 +65,12 @@ class Settings(BaseSettings):
     web_port: int = Field(default=8000, description="Web server port")
 
     # Google OAuth (for web admin authentication)
-    google_oauth_client_id: str = Field(..., description="Google OAuth Client ID")
-    google_oauth_client_secret: str = Field(..., description="Google OAuth Client Secret")
-    session_secret_key: str = Field(..., description="Secret key for session encryption")
+    google_oauth_client_id: str = Field(default="", description="Google OAuth Client ID")
+    google_oauth_client_secret: str = Field(default="", description="Google OAuth Client Secret")
+    session_secret_key: str = Field(
+        default="dev-secret-key-change-in-production",
+        description="Secret key for session encryption",
+    )
     allowed_email_domain: str = Field(
         default="nilenso.com",
         description="Email domain allowed to access admin (e.g., nilenso.com)",

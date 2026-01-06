@@ -36,7 +36,7 @@ def create_app() -> FastAPI:
 
     # Session middleware for OAuth (must be added before routes)
     app.add_middleware(
-        SessionMiddleware,
+        SessionMiddleware,  # type: ignore[arg-type]
         secret_key=settings.session_secret_key,
         session_cookie="leave_bot_session",
         max_age=86400 * 7,  # 7 days
@@ -73,7 +73,7 @@ def create_app() -> FastAPI:
     templates_path = Path(__file__).parent / "templates"
     templates = Jinja2Templates(directory=str(templates_path))
 
-    def render_protected(request: Request, template_name: str, context: dict = None):
+    def render_protected(request: Request, template_name: str, context: dict | None = None):
         """Render template if authenticated, redirect to login otherwise."""
         user = get_current_user(request)
         if not user:
