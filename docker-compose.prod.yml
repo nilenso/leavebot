@@ -35,6 +35,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      disable: true  # Bot doesn't expose HTTP, disable Dockerfile healthcheck
     restart: unless-stopped
 
   web:
