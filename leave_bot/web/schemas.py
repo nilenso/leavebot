@@ -91,10 +91,8 @@ class LeaveRecordWithUser(LeaveRecordResponse):
 
 # Configuration schemas
 class ConfigurationResponse(BaseModel):
-    """Schema for configuration response."""
-
     key: str
-    value: dict[str, Any]
+    value: Any
     updated_at: datetime
 
     class Config:
@@ -102,9 +100,7 @@ class ConfigurationResponse(BaseModel):
 
 
 class ConfigurationUpdate(BaseModel):
-    """Schema for updating configuration."""
-
-    value: dict[str, Any]
+    value: Any
 
 
 # Health check schemas
