@@ -91,6 +91,12 @@ System architecture, components, and data flow for the Nilenso Leave Bot.
                                 │ Yes
                                 ▼
                     ┌───────────────────────┐
+                    │ Thread already has    │───Yes─▶ Ignore
+                    │ completed action?     │        (stop listening)
+                    └───────────────────────┘
+                                │ No
+                                ▼
+                    ┌───────────────────────┐
                     │ Parse with LLM        │
                     │ (OpenAI structured)   │
                     └───────────────────────┘
@@ -176,14 +182,19 @@ Calendar Events:
 
 ## Error Handling
 
-### Retry Strategy
+### Sync Failures
 
 | Failure | Handling |
 |---------|----------|
-| Calendar API error | Retry 3x with backoff, mark as failed |
-| Harvest API error | Same as above |
+| Calendar API error | Mark as failed, log error |
+| Harvest API error | Mark as failed, log error |
 | Partial success | Calendar OK, Harvest failed → keep calendar, mark Harvest failed |
-| Rate limiting | Exponential backoff |
+
+### No Automatic Retries
+
+Failed syncs are **not** automatically retried. The database is not the source of truth—Slack confirmations are. Users may delete leaves externally, and automatic retries would recreate them.
+
+Manual retry is available via the web admin API: `POST /api/leaves/{id}/retry`
 
 ### Status Transitions
 

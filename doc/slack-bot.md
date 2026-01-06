@@ -71,9 +71,10 @@ leave, ooo, wfh, sick, vacation, pto, day off
 
 ### Thread Handling
 
-- **Top-level messages**: Primary trigger point
-- **Thread replies to bot prompts**: Processed for clarification
-- **Other thread replies**: Ignored
+- **Top-level messages**: Primary trigger point, require trigger keywords
+- **Thread replies**: Processed without keyword check (thread context is the signal)
+- **After confirmation**: Bot stops listening to the thread once a leave is confirmed/completed
+- **Superseding**: New confirmations in a thread expire and update previous pending confirmations
 
 ## LLM Parsing
 
@@ -349,6 +350,33 @@ class Worker:
 - Pending actions expire after 1 hour (configurable)
 - Worker marks expired actions and disables buttons
 - User must post a new message to try again
+
+### No Automatic Retries
+
+The worker does **not** automatically retry failed syncs. This is intentional:
+- The database is not the source of truth—Slack confirmations are
+- Users may delete leaves externally (in Calendar/Harvest)
+- Automatic retries would recreate deleted entries
+
+Failed syncs can be manually retried via the web admin API (`POST /api/leaves/{id}/retry`).
+
+## Superseding Confirmations
+
+When a user posts a follow-up message in a thread that triggers a new confirmation:
+
+1. All previous `pending` actions in that thread are marked `expired`
+2. Their Slack messages are updated to show "↩️ This request was superseded by a newer one below"
+3. Only the newest confirmation has active buttons
+
+This ensures users only have one active confirmation to deal with at a time.
+
+## Thread Completion
+
+Once a leave is confirmed in a thread:
+
+1. The `PendingAction` status becomes `confirmed` → `processing` → `completed`
+2. The bot stops listening to further messages in that thread
+3. Users wanting to modify the leave must use a new top-level message or the web admin
 
 ## Deduplication
 

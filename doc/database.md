@@ -331,16 +331,17 @@ async def get_pending_leaves(session, user_id: int) -> list[LeaveRecord]:
     return result.scalars().all()
 ```
 
-**Check for date conflicts:**
+**Check for date conflicts (in-flight leaves only):**
 ```python
-async def has_leave_on_date(session, user_id: int, date: date) -> bool:
+async def check_existing_leaves(session, user_id: int, dates: list[date]) -> list[date]:
+    # Only pending/confirmed are conflicts—completed leaves may have been deleted externally
     result = await session.execute(
-        select(LeaveRecord)
+        select(LeaveRecord.date)
         .where(LeaveRecord.user_id == user_id)
-        .where(LeaveRecord.date == date)
-        .where(LeaveRecord.status != LeaveStatus.cancelled)
+        .where(LeaveRecord.date.in_(dates))
+        .where(LeaveRecord.status.in_([LeaveStatus.pending, LeaveStatus.confirmed]))
     )
-    return result.scalar_one_or_none() is not None
+    return list(result.scalars().all())
 ```
 
 ## Backup & Restore
