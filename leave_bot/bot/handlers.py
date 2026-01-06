@@ -92,6 +92,48 @@ async def check_existing_leaves(
         return list(result.scalars().all())
 
 
+async def expire_previous_pending_actions(
+    user_id: int,
+    channel_id: str,
+    thread_ts: str | None,
+    client: AsyncWebClient,
+) -> None:
+    """Expire any pending actions for this user in the same thread and update their Slack messages."""
+    async with get_session() as session:
+        # Find pending actions for this user in the same thread (or top-level if no thread)
+        query = (
+            select(PendingAction)
+            .where(PendingAction.user_id == user_id)
+            .where(PendingAction.slack_channel_id == channel_id)
+            .where(PendingAction.status == ActionStatus.pending)
+        )
+        if thread_ts:
+            query = query.where(PendingAction.slack_thread_ts == thread_ts)
+        else:
+            query = query.where(PendingAction.slack_thread_ts.is_(None))
+
+        result = await session.execute(query)
+        old_actions = result.scalars().all()
+
+        for action in old_actions:
+            action.status = ActionStatus.expired
+
+            # Update the old Slack message to show it's superseded
+            if action.slack_bot_message_ts and action.slack_channel_id:
+                try:
+                    await client.chat_update(
+                        channel=action.slack_channel_id,
+                        ts=action.slack_bot_message_ts,
+                        blocks=blocks.build_superseded_message(),
+                    )
+                except Exception as e:
+                    logger.error("failed_to_update_superseded_message", error=str(e))
+
+            logger.info("expired_previous_action", action_id=str(action.id))
+
+        await session.commit()
+
+
 async def create_pending_action(
     user_id: int,
     action_type: ActionType,
@@ -227,6 +269,15 @@ async def handle_message(
 
     # Determine action type
     action_type = ActionType.cancel_leave if parsed.is_cancellation else ActionType.create_leave
+
+    # Expire any previous pending confirmations in this thread
+    if channel_id:
+        await expire_previous_pending_actions(
+            user_id=user.id,
+            channel_id=channel_id,
+            thread_ts=thread_ts,
+            client=client,
+        )
 
     # Create pending action
     action_id = str(uuid.uuid4())[:8]  # Short ID for buttons

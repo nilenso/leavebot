@@ -302,3 +302,15 @@ def build_expired_message() -> list[dict]:
             },
         },
     ]
+
+
+def build_superseded_message() -> list[dict]:
+    return [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "↩️ This request was superseded by a newer one below.",
+            },
+        },
+    ]
