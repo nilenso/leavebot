@@ -220,8 +220,6 @@ class Worker:
             logger.info("expired_actions", count=len(expired_actions))
             return len(expired_actions)
 
-
-
     async def run(self) -> None:
         self.running = True
         logger.info("worker_started")

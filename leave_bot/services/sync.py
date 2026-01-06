@@ -322,5 +322,3 @@ class SyncService:
             await session.commit()
             logger.info("leave_cancelled", leave_id=leave_record.id)
             return SyncResult(success=True)
-
-
