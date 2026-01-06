@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 from slack_bolt.async_app import AsyncApp
 from slack_sdk.web.async_client import AsyncWebClient
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
 
 from leave_bot.bot import blocks
@@ -99,8 +99,6 @@ async def expire_previous_pending_actions(
     client: AsyncWebClient,
 ) -> None:
     """Expire any pending actions for this user in the same thread and update their Slack messages."""
-    from sqlalchemy import or_
-
     async with get_session() as session:
         # Find pending actions for this user in the same thread
         query = (
@@ -143,6 +141,29 @@ async def expire_previous_pending_actions(
             logger.info("expired_previous_action", action_id=str(action.id))
 
         await session.commit()
+
+
+async def thread_has_completed_action(
+    user_id: int,
+    channel_id: str,
+    thread_ts: str,
+) -> bool:
+    """Check if this thread already has a confirmed/completed action."""
+    async with get_session() as session:
+        result = await session.execute(
+            select(PendingAction)
+            .where(PendingAction.user_id == user_id)
+            .where(PendingAction.slack_channel_id == channel_id)
+            .where(
+                or_(
+                    PendingAction.slack_thread_ts == thread_ts,
+                    PendingAction.slack_message_ts == thread_ts,
+                )
+            )
+            .where(PendingAction.status.in_([ActionStatus.confirmed, ActionStatus.completed]))
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
 
 
 async def create_pending_action(
@@ -230,6 +251,12 @@ async def handle_message(
             thread_ts=message_ts,
         )
         return
+
+    # Stop listening to thread once a leave has been confirmed
+    if is_thread_reply and thread_ts and channel_id:
+        if await thread_has_completed_action(user.id, channel_id, thread_ts):
+            logger.info("thread_already_completed", thread_ts=thread_ts)
+            return
 
     # Fetch thread context for thread replies
     thread_context: list[ThreadMessage] = []
