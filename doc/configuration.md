@@ -26,7 +26,7 @@ All environment variables and runtime configuration options.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENAI_MODEL` | OpenAI model for parsing | `gpt-4o-mini` |
+| `OPENAI_MODEL` | OpenAI model for parsing | (required) |
 | `TRIGGER_KEYWORDS` | Comma-separated keywords | `leave,ooo,wfh,sick,vacation,pto,day off` |
 | `DEFAULT_TIMEZONE` | Fallback timezone | `Asia/Kolkata` |
 | `PENDING_ACTION_EXPIRY_MINUTES` | Confirmation timeout | `60` |
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     
     # OpenAI
     openai_api_key: str
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str  # Required, no default
     
     # Google Calendar
     google_service_account_json_base64: str
@@ -99,7 +99,7 @@ SLACK_CHANNEL_ID=C0XXXXXXX
 
 # OpenAI
 OPENAI_API_KEY=sk-openai-your-key
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=your-model-here
 
 # Google Calendar (base64 encoded JSON)
 GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=eyJhbGciOiJSUzI1NiIs...

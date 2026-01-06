@@ -59,7 +59,7 @@ System architecture, components, and data flow for the Nilenso Leave Bot.
 | Web Framework | FastAPI | Async support, automatic OpenAPI docs |
 | Database | PostgreSQL 16 | Reliable, good JSON support |
 | ORM | SQLAlchemy 2.0 | Async support, type hints, Alembic migrations |
-| LLM | OpenAI GPT-4o-mini | Structured output, low latency |
+| LLM | OpenAI (configurable) | Structured output for parsing |
 | Containerization | Docker + Compose | Simple deployment, reproducible |
 | Reverse Proxy | Caddy | Zero-config HTTPS |
 

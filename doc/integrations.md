@@ -238,7 +238,7 @@ The bot uses OpenAI's API for parsing natural language leave messages into struc
 2. **Configure Bot**
    ```bash
    OPENAI_API_KEY=sk-openai-your-key
-   OPENAI_MODEL=gpt-4o-mini  # Default
+   OPENAI_MODEL=your-model-here
    ```
 
 ### Service Location
@@ -249,7 +249,7 @@ The bot uses OpenAI's API for parsing natural language leave messages into struc
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `OPENAI_MODEL` | `gpt-4o-mini` | Model to use for parsing |
+| `OPENAI_MODEL` | (required) | Model to use for parsing |
 
 ### Structured Output
 
@@ -279,7 +279,7 @@ The LLM receives:
 
 ### Cost Considerations
 
-- `gpt-4o-mini` is cost-effective for this use case
+- Choose a model that supports structured output
 - Low volume for a small org's leave messages
 - Structured output reduces token usage
 
