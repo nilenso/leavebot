@@ -242,6 +242,57 @@ class TestBlockBuilders:
 
         assert len(blocks) >= 2
         assert "Confirmed" in str(blocks) or "confirmed" in str(blocks).lower()
+        # Should mention both Calendar and Harvest when not skipped
+        assert "Calendar and Harvest" in str(blocks)
+
+    def test_success_message_harvest_skipped(self):
+        """Test success message shows warning when Harvest is skipped."""
+        from leave_bot.bot.blocks import build_success_message
+        from leave_bot.models.leave import LeaveRecord, LeaveStatus, LeaveType, LeaveCategory
+
+        record = LeaveRecord(
+            id=1,
+            user_id=1,
+            date=date(2026, 1, 5),
+            leave_type=LeaveType.full,
+            leave_category=LeaveCategory.vacation,
+            status=LeaveStatus.completed,
+        )
+
+        blocks = build_success_message([record], harvest_skipped=True)
+
+        blocks_str = str(blocks)
+        # Should NOT mention "Calendar and Harvest" together
+        assert "Calendar and Harvest" not in blocks_str
+        # Should mention only Calendar
+        assert "Calendar" in blocks_str
+        # Should show warning about Harvest being skipped
+        assert "Harvest sync skipped" in blocks_str
+        assert "no Harvest ID" in blocks_str
+
+    def test_success_message_cancellation_harvest_skipped(self):
+        """Test cancellation success message shows warning when Harvest is skipped."""
+        from leave_bot.bot.blocks import build_success_message
+        from leave_bot.models.leave import LeaveRecord, LeaveStatus, LeaveType, LeaveCategory
+
+        record = LeaveRecord(
+            id=1,
+            user_id=1,
+            date=date(2026, 1, 5),
+            leave_type=LeaveType.full,
+            leave_category=LeaveCategory.vacation,
+            status=LeaveStatus.cancelled,
+        )
+
+        blocks = build_success_message([record], is_cancellation=True, harvest_skipped=True)
+
+        blocks_str = str(blocks)
+        # Should mention cancellation
+        assert "Cancelled" in blocks_str
+        # Should NOT mention "Calendar and Harvest" together
+        assert "Calendar and Harvest" not in blocks_str
+        # Should show warning about Harvest being skipped
+        assert "Harvest sync skipped" in blocks_str
 
     def test_error_message(self):
         """Test error message structure."""

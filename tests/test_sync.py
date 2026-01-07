@@ -38,6 +38,26 @@ class TestSyncResult:
         assert result.success is False
         assert result.error_message == "Calendar API error"
 
+    def test_harvest_skipped_result(self):
+        """Test sync result with harvest_skipped flag."""
+        result = SyncResult(
+            success=True,
+            calendar_event_id="event123",
+            harvest_entry_id=None,
+            harvest_skipped=True,
+        )
+
+        assert result.success is True
+        assert result.calendar_event_id == "event123"
+        assert result.harvest_entry_id is None
+        assert result.harvest_skipped is True
+
+    def test_harvest_skipped_defaults_to_false(self):
+        """Test that harvest_skipped defaults to False."""
+        result = SyncResult(success=True)
+
+        assert result.harvest_skipped is False
+
 
 class TestSyncService:
     """Tests for SyncService."""
@@ -47,6 +67,7 @@ class TestSyncService:
         """Create a mock calendar service."""
         service = MagicMock()
         service.create_event = AsyncMock(return_value="event123")
+        service.create_spanning_event = AsyncMock(return_value="event123")
         service.delete_event = AsyncMock(return_value=True)
         service.check_connection = AsyncMock(return_value=True)
         return service
@@ -184,7 +205,7 @@ class TestSyncService:
         mock_harvest_service,
         sample_leave,
     ):
-        """Test sync for user without Harvest ID."""
+        """Test sync for user without Harvest ID reports harvest_skipped."""
         user_no_harvest = User(
             id=1,
             slack_user_id="U12345678",
@@ -209,7 +230,88 @@ class TestSyncService:
             assert result.success is True
             assert result.calendar_event_id == "event123"
             assert result.harvest_entry_id is None  # No Harvest entry
+            assert result.harvest_skipped is True  # Bug fix: now reports skipped
             mock_harvest_service.create_time_entry.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_sync_leave_with_harvest_user_not_skipped(
+        self,
+        mock_calendar_service,
+        mock_harvest_service,
+        sample_user,
+        sample_leave,
+    ):
+        """Test sync for user WITH Harvest ID does not report harvest_skipped."""
+        with (
+            patch("leave_bot.services.sync.CalendarService", return_value=mock_calendar_service),
+            patch("leave_bot.services.sync.HarvestService", return_value=mock_harvest_service),
+        ):
+            sync_service = SyncService()
+
+            mock_session = MagicMock()
+            mock_session.commit = AsyncMock()
+
+            result = await sync_service.sync_leave(sample_leave, sample_user, mock_session)
+
+            assert result.success is True
+            assert result.harvest_entry_id == 456
+            assert result.harvest_skipped is False
+
+    @pytest.mark.asyncio
+    async def test_sync_leaves_batch_harvest_skipped(
+        self,
+        mock_calendar_service,
+        mock_harvest_service,
+    ):
+        """Test batch sync for user without Harvest ID reports harvest_skipped on all results."""
+        from leave_bot.models.leave import LeaveCategory, LeaveRecord, LeaveStatus, LeaveType
+
+        user_no_harvest = User(
+            id=1,
+            slack_user_id="U12345678",
+            slack_display_name="Test User",
+            email="test@example.com",
+            slack_timezone="Asia/Kolkata",
+            harvest_user_id=None,  # No Harvest ID
+            is_active=True,
+        )
+
+        # Create multiple leave records
+        records = [
+            LeaveRecord(
+                id=1,
+                user_id=1,
+                date=date(2026, 1, 5),
+                leave_type=LeaveType.full,
+                leave_category=LeaveCategory.vacation,
+                status=LeaveStatus.confirmed,
+            ),
+            LeaveRecord(
+                id=2,
+                user_id=1,
+                date=date(2026, 1, 6),
+                leave_type=LeaveType.full,
+                leave_category=LeaveCategory.vacation,
+                status=LeaveStatus.confirmed,
+            ),
+        ]
+
+        with (
+            patch("leave_bot.services.sync.CalendarService", return_value=mock_calendar_service),
+            patch("leave_bot.services.sync.HarvestService", return_value=mock_harvest_service),
+        ):
+            sync_service = SyncService()
+
+            mock_session = MagicMock()
+            mock_session.commit = AsyncMock()
+
+            results = await sync_service.sync_leaves(records, user_no_harvest, mock_session)
+
+            assert len(results) == 2
+            for result in results:
+                assert result.success is True
+                assert result.harvest_skipped is True
+                assert result.harvest_entry_id is None
 
     @pytest.mark.asyncio
     async def test_cancel_leave_success(
