@@ -284,9 +284,7 @@ async def import_slack_users(
                     continue
 
                 # Find matching user by email
-                result = await session.execute(
-                    select(User).where(func.lower(User.email) == email)
-                )
+                result = await session.execute(select(User).where(func.lower(User.email) == email))
                 user = result.scalar_one_or_none()
 
                 if user and user.harvest_user_id != hu["id"]:

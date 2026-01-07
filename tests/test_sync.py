@@ -178,7 +178,9 @@ class TestSyncService:
         mock_request = httpx.Request("POST", "https://api.harvestapp.com/v2/time_entries")
         mock_response = httpx.Response(500, request=mock_request)
         mock_harvest_service.create_time_entry = AsyncMock(
-            side_effect=httpx.HTTPStatusError("Harvest error", request=mock_request, response=mock_response)
+            side_effect=httpx.HTTPStatusError(
+                "Harvest error", request=mock_request, response=mock_response
+            )
         )
 
         with (
@@ -356,7 +358,9 @@ class TestSyncService:
         mock_request = httpx.Request("DELETE", "https://api.harvestapp.com/v2/time_entries/456")
         mock_response = httpx.Response(500, request=mock_request)
         mock_harvest_service.delete_time_entry = AsyncMock(
-            side_effect=httpx.HTTPStatusError("Harvest error", request=mock_request, response=mock_response)
+            side_effect=httpx.HTTPStatusError(
+                "Harvest error", request=mock_request, response=mock_response
+            )
         )
 
         with (
