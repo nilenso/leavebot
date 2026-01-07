@@ -80,7 +80,7 @@ def upgrade() -> None:
         sa.Column("slack_message_ts", sa.String(30), nullable=True),
         sa.Column("slack_channel_id", sa.String(20), nullable=True),
         sa.Column("calendar_event_id", sa.String(100), nullable=True),
-        sa.Column("harvest_entry_id", sa.Integer(), nullable=True),
+        sa.Column("harvest_entry_id", sa.BigInteger(), nullable=True),
         sa.Column(
             "status",
             postgresql.ENUM(
