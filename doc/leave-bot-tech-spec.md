@@ -760,14 +760,11 @@ leave-bot/
 │   └── utils/
 │       ├── __init__.py
 │       └── dates.py            # Date parsing helpers
-├── tests/
-│   ├── conftest.py
-│   ├── test_parser.py
-│   ├── test_handlers.py
-│   └── test_sync.py
-└── scripts/
-    ├── import_slack_users.py
-    └── import_harvest_users.py
+└── tests/
+    ├── conftest.py
+    ├── test_parser.py
+    ├── test_handlers.py
+    └── test_sync.py
 ```
 
 ### 7.2 Docker Configuration

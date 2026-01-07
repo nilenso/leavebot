@@ -49,13 +49,7 @@ Docker configuration, local development setup, and production deployment.
    uv run leave-bot migrate
    ```
 
-6. **Import users**
-   ```bash
-   uv run python scripts/import_slack_users.py
-   uv run python scripts/import_harvest_users.py
-   ```
-
-7. **Start the bot**
+6. **Start the bot**
    ```bash
    # All components
    uv run leave-bot all
