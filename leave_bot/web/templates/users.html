@@ -58,11 +58,11 @@ async function loadUsers() {
 }
 
 async function importSlack() {
-    if (!confirm('Import users from Slack?')) return;
+    if (!confirm('Import users from Slack and map Harvest IDs?')) return;
     try {
         const res = await fetch('/api/users/import/slack', { method: 'POST' });
         const data = await res.json();
-        alert(`Imported ${data.imported} users`);
+        alert(`Imported ${data.imported} users, updated ${data.updated} users, mapped ${data.harvest_mapped} Harvest IDs`);
         loadUsers();
     } catch (e) {
         alert('Failed to import: ' + e.message);

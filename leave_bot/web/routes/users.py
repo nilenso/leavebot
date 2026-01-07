@@ -270,23 +270,59 @@ async def import_slack_users(
 
         await session.commit()
 
+        # Now map Harvest IDs to users by email
+        harvest_mapped = 0
+        try:
+            service = HarvestService()
+            harvest_users = await service.get_users()
+
+            for hu in harvest_users:
+                email = hu.get("email", "").lower()
+                if not email:
+                    continue
+
+                # Find matching user by email
+                result = await session.execute(
+                    select(User).where(func.lower(User.email) == email)
+                )
+                user = result.scalar_one_or_none()
+
+                if user and user.harvest_user_id != hu["id"]:
+                    user.harvest_user_id = hu["id"]
+                    harvest_mapped += 1
+                    logger.info(
+                        "mapped_harvest_user",
+                        email=email,
+                        harvest_id=hu["id"],
+                    )
+
+            await session.commit()
+            logger.info("harvest_mapping_complete", mapped=harvest_mapped)
+
+        except Exception as e:
+            logger.error("harvest_mapping_failed", error=str(e))
+            errors.append(f"Harvest mapping failed: {e}")
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error("slack_import_failed", error=str(e))
         errors.append(str(e))
+        harvest_mapped = 0
 
     logger.info(
         "slack_import_complete",
         imported=imported,
         updated=updated,
         skipped=skipped,
+        harvest_mapped=harvest_mapped,
     )
 
     return ImportResult(
         imported=imported,
         updated=updated,
         skipped=skipped,
+        harvest_mapped=harvest_mapped,
         errors=errors,
     )
 

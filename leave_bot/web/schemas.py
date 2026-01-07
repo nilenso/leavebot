@@ -128,4 +128,5 @@ class ImportResult(BaseModel):
     imported: int
     updated: int
     skipped: int
+    harvest_mapped: int = 0
     errors: list[str]
