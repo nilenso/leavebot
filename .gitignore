@@ -54,3 +54,6 @@ htmlcov/
 
 # Docker
 *.log
+
+# Pi coding agent session files
+pi-session-*.html
