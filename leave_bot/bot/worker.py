@@ -132,12 +132,15 @@ class Worker:
         # Pair up records with results
         successful_records = []
         failed_records = []
+        any_harvest_skipped = False
 
         for record, sync_result in zip(records_to_sync, sync_results, strict=True):
             if sync_result.success:
                 successful_records.append(record)
             else:
                 failed_records.append(record)
+            if sync_result.harvest_skipped:
+                any_harvest_skipped = True
 
         # Update Slack message
         if action.slack_channel_id and action.slack_bot_message_ts:
@@ -153,7 +156,10 @@ class Worker:
                     await self.slack_client.chat_update(
                         channel=action.slack_channel_id,
                         ts=action.slack_bot_message_ts,
-                        blocks=blocks.build_success_message(successful_records),
+                        blocks=blocks.build_success_message(
+                            successful_records,
+                            harvest_skipped=any_harvest_skipped,
+                        ),
                     )
             except SlackApiError as e:
                 logger.error("slack_update_failed", error=str(e))

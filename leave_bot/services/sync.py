@@ -23,6 +23,7 @@ class SyncResult:
     calendar_event_id: str | None = None
     harvest_entry_id: int | None = None
     error_message: str | None = None
+    harvest_skipped: bool = False
 
 
 class SyncService:
@@ -66,6 +67,7 @@ class SyncService:
             errors.append(error_msg)
 
         # Create Harvest time entry (only if user has Harvest ID)
+        harvest_skipped = False
         if user.harvest_user_id:
             try:
                 harvest_entry_id = await self.harvest.create_time_entry(
@@ -81,6 +83,7 @@ class SyncService:
                 errors.append(error_msg)
         else:
             logger.info("skipping_harvest_no_user_id", user_id=user.id)
+            harvest_skipped = True
 
         # Update leave record status
         if errors:
@@ -93,6 +96,7 @@ class SyncService:
                 calendar_event_id=calendar_event_id,
                 harvest_entry_id=harvest_entry_id,
                 error_message=leave_record.error_message,
+                harvest_skipped=harvest_skipped,
             )
         else:
             leave_record.status = LeaveStatus.completed
@@ -108,6 +112,7 @@ class SyncService:
                 success=True,
                 calendar_event_id=calendar_event_id,
                 harvest_entry_id=harvest_entry_id,
+                harvest_skipped=harvest_skipped,
             )
 
     async def sync_leaves(
@@ -235,6 +240,7 @@ class SyncService:
             for record in span_records:
                 harvest_entry_id: int | None = None
                 record_errors = errors.copy()
+                harvest_skipped = False
 
                 if user.harvest_user_id:
                     try:
@@ -251,6 +257,7 @@ class SyncService:
                         record_errors.append(error_msg)
                 else:
                     logger.info("skipping_harvest_no_user_id", user_id=user.id)
+                    harvest_skipped = True
 
                 # Update record status
                 if record_errors:
@@ -263,6 +270,7 @@ class SyncService:
                             calendar_event_id=calendar_event_id,
                             harvest_entry_id=harvest_entry_id,
                             error_message=record.error_message,
+                            harvest_skipped=harvest_skipped,
                         )
                     )
                 else:
@@ -273,6 +281,7 @@ class SyncService:
                             success=True,
                             calendar_event_id=calendar_event_id,
                             harvest_entry_id=harvest_entry_id,
+                            harvest_skipped=harvest_skipped,
                         )
                     )
 

@@ -178,15 +178,22 @@ def build_confirmation_message(
 def build_success_message(
     leave_records: list[LeaveRecord],
     is_cancellation: bool = False,
+    harvest_skipped: bool = False,
 ) -> list[dict]:
     blocks = []
 
     if is_cancellation:
         header_text = "✅ Leave Cancelled"
-        status_text = "Your leave has been cancelled and removed from Calendar and Harvest."
+        if harvest_skipped:
+            status_text = "Your leave has been cancelled and removed from Calendar."
+        else:
+            status_text = "Your leave has been cancelled and removed from Calendar and Harvest."
     else:
         header_text = "✅ Leave Confirmed"
-        status_text = "Your leave has been synced to Calendar and Harvest."
+        if harvest_skipped:
+            status_text = "Your leave has been synced to Calendar."
+        else:
+            status_text = "Your leave has been synced to Calendar and Harvest."
 
     blocks.append(
         {
@@ -227,6 +234,20 @@ def build_success_message(
                     "type": "mrkdwn",
                     "text": "*Dates:*\n" + "\n".join(date_list),
                 },
+            }
+        )
+
+    # Warning about skipped Harvest sync
+    if harvest_skipped:
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "⚠️ Harvest sync skipped — no Harvest ID configured for your account.",
+                    },
+                ],
             }
         )
 
