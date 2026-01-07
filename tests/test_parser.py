@@ -4,6 +4,7 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
+from openai import OpenAIError
 
 from leave_bot.bot.parser import (
     LeaveDate,
@@ -211,7 +212,7 @@ class TestParseLeaveMessage:
         with patch("leave_bot.bot.parser.OpenAI") as mock_client:
             mock_instance = MagicMock()
             mock_client.return_value = mock_instance
-            mock_instance.responses.create.side_effect = Exception("API Error")
+            mock_instance.responses.create.side_effect = OpenAIError("API Error")
 
             result = await parse_leave_message(
                 "On leave tomorrow",

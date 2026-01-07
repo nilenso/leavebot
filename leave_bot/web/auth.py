@@ -4,6 +4,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Callable
 
+from authlib.integrations.base_client import OAuthError
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -63,7 +64,7 @@ async def callback(request: Request):
 
     try:
         token = await oauth.google.authorize_access_token(request)
-    except Exception as e:
+    except OAuthError as e:
         logger.error("oauth_callback_failed", error=str(e))
         raise HTTPException(status_code=401, detail="Authentication failed")
 

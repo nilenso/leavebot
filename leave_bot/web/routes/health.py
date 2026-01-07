@@ -1,7 +1,11 @@
 """Health check endpoints."""
 
+import httpx
 from fastapi import APIRouter, Depends
+from googleapiclient.errors import HttpError as GoogleHttpError
+from slack_sdk.errors import SlackApiError
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from leave_bot.bot.app import check_slack_connection
@@ -19,7 +23,7 @@ async def check_database(session: AsyncSession) -> ServiceHealth:
     try:
         await session.execute(text("SELECT 1"))
         return ServiceHealth(status="healthy")
-    except Exception as e:
+    except SQLAlchemyError as e:
         logger.error("database_health_check_failed", error=str(e))
         return ServiceHealth(status="unhealthy", message=str(e))
 
@@ -31,7 +35,7 @@ async def check_calendar() -> ServiceHealth:
         if healthy:
             return ServiceHealth(status="healthy")
         return ServiceHealth(status="unhealthy", message="Connection check failed")
-    except Exception as e:
+    except GoogleHttpError as e:
         logger.error("calendar_health_check_failed", error=str(e))
         return ServiceHealth(status="unhealthy", message=str(e))
 
@@ -43,7 +47,7 @@ async def check_harvest() -> ServiceHealth:
         if healthy:
             return ServiceHealth(status="healthy")
         return ServiceHealth(status="unhealthy", message="Connection check failed")
-    except Exception as e:
+    except httpx.HTTPStatusError as e:
         logger.error("harvest_health_check_failed", error=str(e))
         return ServiceHealth(status="unhealthy", message=str(e))
 
@@ -54,7 +58,7 @@ async def check_slack() -> ServiceHealth:
         if healthy:
             return ServiceHealth(status="healthy")
         return ServiceHealth(status="unhealthy", message="Connection check failed")
-    except Exception as e:
+    except SlackApiError as e:
         logger.error("slack_health_check_failed", error=str(e))
         return ServiceHealth(status="unhealthy", message=str(e))
 

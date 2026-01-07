@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+import httpx
+from googleapiclient.errors import HttpError as GoogleHttpError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from leave_bot.models.leave import LeaveRecord, LeaveStatus, LeaveType
@@ -58,7 +60,7 @@ class SyncService:
                 timezone=user.slack_timezone,
             )
             leave_record.calendar_event_id = calendar_event_id
-        except Exception as e:
+        except GoogleHttpError as e:
             error_msg = f"Calendar sync failed: {e}"
             logger.error("calendar_sync_failed", error=str(e))
             errors.append(error_msg)
@@ -73,7 +75,7 @@ class SyncService:
                     category=leave_record.leave_category,
                 )
                 leave_record.harvest_entry_id = harvest_entry_id
-            except Exception as e:
+            except httpx.HTTPStatusError as e:
                 error_msg = f"Harvest sync failed: {e}"
                 logger.error("harvest_sync_failed", error=str(e))
                 errors.append(error_msg)
@@ -224,7 +226,7 @@ class SyncService:
                 for record in span_records:
                     record.calendar_event_id = calendar_event_id
 
-            except Exception as e:
+            except GoogleHttpError as e:
                 error_msg = f"Calendar sync failed: {e}"
                 logger.error("calendar_span_sync_failed", error=str(e))
                 errors.append(error_msg)
@@ -243,7 +245,7 @@ class SyncService:
                             category=record.leave_category,
                         )
                         record.harvest_entry_id = harvest_entry_id
-                    except Exception as e:
+                    except httpx.HTTPStatusError as e:
                         error_msg = f"Harvest sync failed: {e}"
                         logger.error("harvest_sync_failed", error=str(e))
                         record_errors.append(error_msg)
@@ -295,7 +297,7 @@ class SyncService:
             try:
                 await self.calendar.delete_event(leave_record.calendar_event_id)
                 leave_record.calendar_event_id = None
-            except Exception as e:
+            except GoogleHttpError as e:
                 error_msg = f"Calendar delete failed: {e}"
                 logger.error("calendar_delete_failed", error=str(e))
                 errors.append(error_msg)
@@ -305,7 +307,7 @@ class SyncService:
             try:
                 await self.harvest.delete_time_entry(leave_record.harvest_entry_id)
                 leave_record.harvest_entry_id = None
-            except Exception as e:
+            except httpx.HTTPStatusError as e:
                 error_msg = f"Harvest delete failed: {e}"
                 logger.error("harvest_delete_failed", error=str(e))
                 errors.append(error_msg)

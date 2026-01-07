@@ -2,7 +2,9 @@
 
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from slack_sdk.errors import SlackApiError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -299,13 +301,13 @@ async def import_slack_users(
             await session.commit()
             logger.info("harvest_mapping_complete", mapped=harvest_mapped)
 
-        except Exception as e:
+        except httpx.HTTPStatusError as e:
             logger.error("harvest_mapping_failed", error=str(e))
             errors.append(f"Harvest mapping failed: {e}")
 
     except HTTPException:
         raise
-    except Exception as e:
+    except SlackApiError as e:
         logger.error("slack_import_failed", error=str(e))
         errors.append(str(e))
         harvest_mapped = 0
@@ -365,7 +367,7 @@ async def import_harvest_users(
 
         await session.commit()
 
-    except Exception as e:
+    except httpx.HTTPStatusError as e:
         logger.error("harvest_import_failed", error=str(e))
         errors.append(str(e))
 

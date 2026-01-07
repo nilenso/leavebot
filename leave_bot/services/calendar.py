@@ -5,6 +5,7 @@ from typing import Any
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 from leave_bot.config import get_settings
 from leave_bot.models.leave import LeaveType
@@ -177,7 +178,7 @@ class CalendarService:
             ).execute()
             logger.info("calendar_event_deleted", event_id=event_id)
             return True
-        except Exception as e:
+        except HttpError as e:
             logger.error("calendar_event_delete_failed", event_id=event_id, error=str(e))
             raise
 
@@ -185,6 +186,6 @@ class CalendarService:
         try:
             self.service.calendarList().list(maxResults=1).execute()
             return True
-        except Exception as e:
+        except HttpError as e:
             logger.error("calendar_health_check_failed", error=str(e))
             return False

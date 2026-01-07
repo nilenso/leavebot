@@ -145,6 +145,6 @@ class HarvestService:
                 )
                 response.raise_for_status()
                 return True
-        except Exception as e:
+        except httpx.HTTPStatusError as e:
             logger.error("harvest_health_check_failed", error=str(e))
             return False

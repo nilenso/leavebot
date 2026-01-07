@@ -5,7 +5,7 @@ from datetime import date, datetime
 from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo
 
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 from openai.types.responses import (
     ResponseFormatTextJSONSchemaConfigParam,
     ResponseInputParam,
@@ -205,7 +205,7 @@ Extract structured leave information following the rules. If there is conversati
 
         return parsed
 
-    except Exception as e:
+    except OpenAIError as e:
         logger.error("llm_parse_error", error=str(e))
         return ParsedLeave(
             is_leave_request=False,

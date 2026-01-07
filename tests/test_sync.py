@@ -3,7 +3,9 @@
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+from googleapiclient.errors import HttpError as GoogleHttpError
 
 from leave_bot.models.leave import LeaveCategory, LeaveRecord, LeaveStatus, LeaveType
 from leave_bot.models.user import User
@@ -119,7 +121,13 @@ class TestSyncService:
         sample_leave,
     ):
         """Test sync when calendar fails."""
-        mock_calendar_service.create_event = AsyncMock(side_effect=Exception("Calendar error"))
+        # GoogleHttpError requires resp and content arguments
+        mock_resp = MagicMock()
+        mock_resp.status = 500
+        mock_resp.reason = "Internal Server Error"
+        mock_calendar_service.create_event = AsyncMock(
+            side_effect=GoogleHttpError(mock_resp, b"Calendar error")
+        )
 
         with (
             patch("leave_bot.services.sync.CalendarService", return_value=mock_calendar_service),
@@ -146,7 +154,11 @@ class TestSyncService:
         sample_leave,
     ):
         """Test sync when Harvest fails."""
-        mock_harvest_service.create_time_entry = AsyncMock(side_effect=Exception("Harvest error"))
+        mock_request = httpx.Request("POST", "https://api.harvestapp.com/v2/time_entries")
+        mock_response = httpx.Response(500, request=mock_request)
+        mock_harvest_service.create_time_entry = AsyncMock(
+            side_effect=httpx.HTTPStatusError("Harvest error", request=mock_request, response=mock_response)
+        )
 
         with (
             patch("leave_bot.services.sync.CalendarService", return_value=mock_calendar_service),
@@ -239,7 +251,11 @@ class TestSyncService:
         sample_leave.harvest_entry_id = 456
         sample_leave.status = LeaveStatus.completed
 
-        mock_harvest_service.delete_time_entry = AsyncMock(side_effect=Exception("Harvest error"))
+        mock_request = httpx.Request("DELETE", "https://api.harvestapp.com/v2/time_entries/456")
+        mock_response = httpx.Response(500, request=mock_request)
+        mock_harvest_service.delete_time_entry = AsyncMock(
+            side_effect=httpx.HTTPStatusError("Harvest error", request=mock_request, response=mock_response)
+        )
 
         with (
             patch("leave_bot.services.sync.CalendarService", return_value=mock_calendar_service),

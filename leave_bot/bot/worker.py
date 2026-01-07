@@ -4,8 +4,10 @@ import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from slack_sdk.errors import SlackApiError
 from slack_sdk.web.async_client import AsyncWebClient
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from leave_bot.bot import blocks
 from leave_bot.config import get_settings
@@ -75,7 +77,7 @@ class Worker:
                     action.status = ActionStatus.completed
                     processed += 1
 
-                except Exception as e:
+                except (SQLAlchemyError, SlackApiError, OSError) as e:
                     logger.error(
                         "action_processing_failed",
                         action_id=str(action.id),
@@ -153,7 +155,7 @@ class Worker:
                         ts=action.slack_bot_message_ts,
                         blocks=blocks.build_success_message(successful_records),
                     )
-            except Exception as e:
+            except SlackApiError as e:
                 logger.error("slack_update_failed", error=str(e))
 
     async def _process_cancel_leave(
@@ -213,7 +215,7 @@ class Worker:
                             ts=action.slack_bot_message_ts,
                             blocks=blocks.build_expired_message(),
                         )
-                    except Exception as e:
+                    except SlackApiError as e:
                         logger.error("slack_expire_update_failed", error=str(e))
 
             await session.commit()
@@ -239,7 +241,7 @@ class Worker:
                     await self.expire_old_actions()
                     expire_counter = 0
 
-            except Exception as e:
+            except (SQLAlchemyError, SlackApiError, OSError) as e:
                 logger.error("worker_error", error=str(e))
 
             await asyncio.sleep(POLL_INTERVAL_SECONDS)

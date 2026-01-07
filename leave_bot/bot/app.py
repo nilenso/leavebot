@@ -35,11 +35,12 @@ async def start_socket_mode(app: AsyncApp) -> None:
 
 
 async def check_slack_connection() -> bool:
+    from slack_sdk.errors import SlackApiError
+    from slack_sdk.web.async_client import AsyncWebClient
+
     settings = get_settings()
 
     try:
-        from slack_sdk.web.async_client import AsyncWebClient
-
         client = AsyncWebClient(token=settings.slack_bot_token)
         response = await client.auth_test()
 
@@ -51,6 +52,6 @@ async def check_slack_connection() -> bool:
             )
             return True
         return False
-    except Exception as e:
+    except SlackApiError as e:
         logger.error("slack_connection_failed", error=str(e))
         return False

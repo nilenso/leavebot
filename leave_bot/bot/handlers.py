@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from slack_bolt.async_app import AsyncApp
+from slack_sdk.errors import SlackApiError
 from slack_sdk.web.async_client import AsyncWebClient
 from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
@@ -58,7 +59,7 @@ async def fetch_thread_context(
         # Sort by timestamp to ensure chronological order
         thread_context.sort(key=lambda m: m.ts)
         return thread_context
-    except Exception as e:
+    except SlackApiError as e:
         logger.error("fetch_thread_context_error", error=str(e))
         return []
 
@@ -135,7 +136,7 @@ async def expire_previous_pending_actions(
                         ts=action.slack_bot_message_ts,
                         blocks=blocks.build_superseded_message(),
                     )
-                except Exception as e:
+                except SlackApiError as e:
                     logger.error("failed_to_update_superseded_message", error=str(e))
 
             logger.info("expired_previous_action", action_id=str(action.id))
